@@ -4,6 +4,10 @@ import com.app.common.JwtUtil;
 import com.app.common.PageResult;
 import com.app.config.RabbitConfig;
 import com.app.feed.FollowEventConsumer.FollowEvent;
+import com.app.upload.ImageValidator;
+import com.app.upload.StorageService;
+import com.app.upload.UploadRequest;
+import com.app.upload.UploadResult;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,9 +18,11 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 
@@ -30,6 +36,8 @@ public class UserServiceImpl implements UserService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final RabbitTemplate rabbitTemplate;
+    private final StorageService storageService;
+    private final ImageValidator imageValidator;
 
     @Override
     @Transactional
@@ -112,6 +120,38 @@ public class UserServiceImpl implements UserService {
         Optional.ofNullable(request.getAvatar()).ifPresent(user::setAvatar);
         Optional.ofNullable(request.getBio()).ifPresent(user::setBio);
         Optional.ofNullable(request.getBioHeaderImg()).ifPresent(user::setBioHeaderImg);
+
+        user = userRepository.save(user);
+        return UserVO.from(user);
+    }
+
+    @Override
+    @CacheEvict(value = "user", key = "#userId")
+    @Transactional
+    public UserVO updateUser(Long userId, String nickname, String bio, String bioHeaderImg, MultipartFile avatarFile) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new EntityNotFoundException("用户不存在"));
+
+        Optional.ofNullable(nickname).ifPresent(user::setNickname);
+        Optional.ofNullable(bio).ifPresent(user::setBio);
+        Optional.ofNullable(bioHeaderImg).ifPresent(user::setBioHeaderImg);
+
+        if (avatarFile != null && !avatarFile.isEmpty()) {
+            imageValidator.validate(avatarFile);
+            try {
+                UploadRequest req = new UploadRequest(
+                        avatarFile.getInputStream(),
+                        avatarFile.getOriginalFilename(),
+                        avatarFile.getContentType(),
+                        avatarFile.getSize(),
+                        "avatars");
+                UploadResult result = storageService.upload(req);
+                user.setAvatar(result.url());
+                log.info("Avatar updated for userId={}, url={}", userId, result.url());
+            } catch (IOException e) {
+                throw new RuntimeException("头像上传失败", e);
+            }
+        }
 
         user = userRepository.save(user);
         return UserVO.from(user);

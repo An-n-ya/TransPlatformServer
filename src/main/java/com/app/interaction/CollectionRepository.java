@@ -17,4 +17,6 @@ public interface CollectionRepository extends JpaRepository<Collection, Long> {
     void deleteByUserIdAndPostId(Long userId, Long postId);
 
     long countByPostId(Long postId);
+
+    Page<Collection> findByUserId(Long userId, Pageable pageable);
 }

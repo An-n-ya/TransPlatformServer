@@ -2,6 +2,7 @@ package com.app.user;
 
 import com.app.common.PageResult;
 import org.springframework.data.domain.Pageable;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * 用户模块 Service 接口
@@ -44,12 +45,21 @@ public interface UserService {
     UserVO getUserById(Long userId);
 
     /**
-     * 更新用户资料
-     * @param userId 用户 ID
-     * @param request 更新请求
-     * @return 更新后的用户视图
+     * 更新用户资料（JSON 方式）
      */
     UserVO updateUser(Long userId, UserUpdateRequest request);
+
+    /**
+     * 更新用户资料（multipart 方式，支持上传头像）
+     *
+     * @param userId       用户 ID
+     * @param nickname     昵称（可选）
+     * @param bio          个人简介（可选）
+     * @param bioHeaderImg 主页背景图 URL（可选）
+     * @param avatarFile   头像文件（可选，上传后自动替换 avatar URL）
+     * @return 更新后的用户视图
+     */
+    UserVO updateUser(Long userId, String nickname, String bio, String bioHeaderImg, MultipartFile avatarFile);
 
     /**
      * 关注用户

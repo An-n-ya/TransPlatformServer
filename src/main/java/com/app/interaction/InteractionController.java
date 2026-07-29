@@ -2,14 +2,20 @@ package com.app.interaction;
 
 import com.app.common.ApiResponse;
 import com.app.common.PageResult;
+import com.app.content.PostService;
+import com.app.content.PostVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 /**
  * 互动控制器 — 点赞、评论、收藏
@@ -23,6 +29,9 @@ public class InteractionController {
     private final LikeService likeService;
     private final CommentService commentService;
     private final CollectionService collectionService;
+    private final PostService postService;
+    private final LikeRepository likeRepository;
+    private final CollectionRepository collectionRepository;
 
     // ========== 点赞 ==========
 
@@ -85,5 +94,29 @@ public class InteractionController {
                                            @PathVariable Long postId) {
         collectionService.uncollect(userId, postId);
         return ApiResponse.success();
+    }
+
+    // ========== 点赞/收藏列表 ==========
+
+    @GetMapping("/users/me/liked-posts")
+    @Operation(summary = "获取当前用户点赞过的帖文列表（分页）")
+    public ApiResponse<PageResult<PostVO>> getLikedPosts(
+            @AuthenticationPrincipal Long userId,
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        Page<Like> likes = likeRepository.findByUserIdAndTargetType(userId, "post", pageable);
+        List<Long> postIds = likes.getContent().stream().map(Like::getTargetId).toList();
+        List<PostVO> posts = postService.getPostsByIds(postIds, userId);
+        return ApiResponse.success(PageResult.of(posts, likes.getNumber(), likes.getSize(), likes.getTotalElements()));
+    }
+
+    @GetMapping("/users/me/collected-posts")
+    @Operation(summary = "获取当前用户收藏过的帖文列表（分页）")
+    public ApiResponse<PageResult<PostVO>> getCollectedPosts(
+            @AuthenticationPrincipal Long userId,
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        Page<Collection> collections = collectionRepository.findByUserId(userId, pageable);
+        List<Long> postIds = collections.getContent().stream().map(Collection::getPostId).toList();
+        List<PostVO> posts = postService.getPostsByIds(postIds, userId);
+        return ApiResponse.success(PageResult.of(posts, collections.getNumber(), collections.getSize(), collections.getTotalElements()));
     }
 }

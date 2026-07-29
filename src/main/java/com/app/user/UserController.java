@@ -9,8 +9,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * 用户控制器 — 用户资料管理、关注/取关
@@ -29,11 +31,22 @@ public class UserController {
         return ApiResponse.success(userService.getCurrentUser(userId));
     }
 
-    @PutMapping("/me")
-    @Operation(summary = "更新当前用户信息")
+    @PutMapping(value = "/me", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @Operation(summary = "更新当前用户信息（JSON 方式）")
     public ApiResponse<UserVO> updateUser(@AuthenticationPrincipal Long userId,
                                           @Valid @RequestBody UserUpdateRequest request) {
         return ApiResponse.success(userService.updateUser(userId, request));
+    }
+
+    @PutMapping(value = "/me", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "更新当前用户信息（multipart 方式，支持上传头像）")
+    public ApiResponse<UserVO> updateUserMultipart(
+            @AuthenticationPrincipal Long userId,
+            @RequestParam(value = "nickname", required = false) String nickname,
+            @RequestParam(value = "bio", required = false) String bio,
+            @RequestParam(value = "bioHeaderImg", required = false) String bioHeaderImg,
+            @RequestParam(value = "avatar", required = false) MultipartFile avatarFile) {
+        return ApiResponse.success(userService.updateUser(userId, nickname, bio, bioHeaderImg, avatarFile));
     }
 
     @GetMapping("/{userId}")
