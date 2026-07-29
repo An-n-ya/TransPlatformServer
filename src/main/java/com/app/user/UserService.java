@@ -1,0 +1,77 @@
+package com.app.user;
+
+import com.app.common.PageResult;
+import org.springframework.data.domain.Pageable;
+
+/**
+ * 用户模块 Service 接口
+ */
+public interface UserService {
+
+    /**
+     * 用户注册
+     * @param request 注册请求
+     * @return 认证响应（包含 Token 和用户信息）
+     */
+    AuthResponse register(RegisterRequest request);
+
+    /**
+     * 用户登录
+     * @param request 登录请求
+     * @return 认证响应
+     */
+    AuthResponse login(LoginRequest request);
+
+    /**
+     * 刷新 Token
+     * @param refreshToken 刷新令牌
+     * @return 新的认证响应
+     */
+    AuthResponse refreshToken(String refreshToken);
+
+    /**
+     * 获取当前用户信息
+     * @param userId 用户 ID
+     * @return 用户视图对象
+     */
+    UserVO getCurrentUser(Long userId);
+
+    /**
+     * 获取指定用户信息
+     * @param userId 用户 ID
+     * @return 用户视图对象
+     */
+    UserVO getUserById(Long userId);
+
+    /**
+     * 更新用户资料
+     * @param userId 用户 ID
+     * @param request 更新请求
+     * @return 更新后的用户视图
+     */
+    UserVO updateUser(Long userId, UserUpdateRequest request);
+
+    /**
+     * 关注用户
+     * @param followerId 关注者 ID
+     * @param followeeId 被关注者 ID
+     */
+    void follow(Long followerId, Long followeeId);
+
+    /**
+     * 取关用户
+     * @param followerId 关注者 ID
+     * @param followeeId 被关注者 ID
+     */
+    void unfollow(Long followerId, Long followeeId);
+
+    /**
+     * 获取粉丝列表（分页）
+     */
+    PageResult<UserVO> getFollowers(Long userId, Pageable pageable);
+
+    /**
+     * 获取关注列表（分页）
+     */
+    PageResult<UserVO> getFollowees(Long userId, Pageable pageable);
+}

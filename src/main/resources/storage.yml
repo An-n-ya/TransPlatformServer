@@ -1,0 +1,20 @@
+# Storage configuration - imported by application.yml via spring.config.import
+# Override with an external storage.yml next to the deployed jar.
+storage:
+  provider: ${STORAGE_PROVIDER:mock}
+  endpoint: ${STORAGE_ENDPOINT:}
+  access-key: ${STORAGE_ACCESS_KEY:}
+  secret-key: ${STORAGE_SECRET_KEY:}
+  bucket: ${STORAGE_BUCKET:}
+  region: ${STORAGE_REGION:}
+  public-base-url: ${STORAGE_PUBLIC_BASE_URL:}
+  path-prefix: ${STORAGE_PATH_PREFIX:uploads}
+  # Tencent Cloud COS (used when storage.provider=cos)
+  cos:
+    secret-id: ${COS_SECRET_ID:}
+    secret-key: ${COS_SECRET_KEY:}
+    region: ${COS_REGION:}
+    bucket: ${COS_BUCKET:}
+    endpoint: ${COS_ENDPOINT:}
+    public-base-url: ${COS_PUBLIC_BASE_URL:}
+    path-prefix: ${COS_PATH_PREFIX:uploads}
