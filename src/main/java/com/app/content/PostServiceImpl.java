@@ -4,6 +4,10 @@ import com.app.common.PageResult;
 import com.app.common.PostCreatedEvent;
 import com.app.interaction.CollectionRepository;
 import com.app.interaction.LikeRepository;
+import com.app.upload.ImageValidator;
+import com.app.upload.StorageService;
+import com.app.upload.UploadRequest;
+import com.app.upload.UploadResult;
 import com.app.user.UserService;
 import com.app.user.UserVO;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -19,7 +23,9 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -41,6 +47,8 @@ public class PostServiceImpl implements PostService {
     private final CollectionRepository collectionRepository;
     private final RabbitTemplate rabbitTemplate;
     private final ObjectMapper objectMapper;
+    private final StorageService storageService;
+    private final ImageValidator imageValidator;
 
     @Override
     @Transactional
@@ -67,6 +75,53 @@ public class PostServiceImpl implements PostService {
         log.info("Post created: postId={}, userId={}", post.getId(), userId);
 
         // 异步推送 Feed 流和通知
+        rabbitTemplate.convertAndSend(POST_EXCHANGE, RK_POST_CREATED, new PostCreatedEvent(post.getId(), userId));
+
+        return buildPostVO(post, userId);
+    }
+
+    @Override
+    @Transactional
+    public PostVO createPost(Long userId, String content, String location, List<MultipartFile> images) {
+        List<String> imageUrls = Collections.emptyList();
+        if (images != null && !images.isEmpty()) {
+            imageValidator.validate(images);
+            imageUrls = images.stream().map(file -> {
+                try {
+                    UploadRequest req = new UploadRequest(
+                            file.getInputStream(),
+                            file.getOriginalFilename(),
+                            file.getContentType(),
+                            file.getSize(),
+                            "posts");
+                    UploadResult result = storageService.upload(req);
+                    return result.url();
+                } catch (IOException e) {
+                    throw new RuntimeException("图片上传失败: " + file.getOriginalFilename(), e);
+                }
+            }).toList();
+        }
+
+        String imagesJson = null;
+        if (!imageUrls.isEmpty()) {
+            try {
+                imagesJson = objectMapper.writeValueAsString(imageUrls);
+            } catch (JsonProcessingException e) {
+                throw new RuntimeException("图片列表序列化失败", e);
+            }
+        }
+
+        Post post = new Post(userId, content, imagesJson, location);
+        post = postRepository.save(post);
+
+        if (!imageUrls.isEmpty()) {
+            for (int i = 0; i < imageUrls.size(); i++) {
+                postImageRepository.save(new PostImage(post.getId(), imageUrls.get(i), i));
+            }
+        }
+
+        log.info("Post created (multipart): postId={}, userId={}, images={}", post.getId(), userId, imageUrls.size());
+
         rabbitTemplate.convertAndSend(POST_EXCHANGE, RK_POST_CREATED, new PostCreatedEvent(post.getId(), userId));
 
         return buildPostVO(post, userId);

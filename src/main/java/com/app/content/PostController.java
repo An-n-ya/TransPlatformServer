@@ -9,8 +9,12 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.util.List;
 
 /**
  * 内容控制器 — 帖文 CRUD
@@ -23,11 +27,22 @@ public class PostController {
 
     private final PostService postService;
 
-    @PostMapping("/posts")
-    @Operation(summary = "发布帖文")
-    public ApiResponse<PostVO> createPost(@AuthenticationPrincipal Long userId,
-                                          @Valid @RequestBody PostCreateRequest request) {
+    @PostMapping(value = "/posts", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @Operation(summary = "发布帖文（JSON 方式，images 传已上传的图片 URL）")
+    public ApiResponse<PostVO> createPostJson(
+            @AuthenticationPrincipal Long userId,
+            @Valid @RequestBody PostCreateRequest request) {
         return ApiResponse.success(postService.createPost(userId, request));
+    }
+
+    @PostMapping(value = "/posts", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "发布帖文（multipart 方式，images 字段传图片文件）")
+    public ApiResponse<PostVO> createPostMultipart(
+            @AuthenticationPrincipal Long userId,
+            @RequestParam("content") String content,
+            @RequestParam(value = "location", required = false) String location,
+            @RequestParam(value = "images", required = false) List<MultipartFile> images) {
+        return ApiResponse.success(postService.createPost(userId, content, location, images));
     }
 
     @GetMapping("/posts/{postId}")

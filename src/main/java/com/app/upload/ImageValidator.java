@@ -4,6 +4,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -20,7 +21,7 @@ public class ImageValidator {
     private static final long MAX_SIZE = 10L * 1024 * 1024; // 10MB
 
     /**
-     * Validate that the multipart file is a non-empty image within size limit.
+     * Validate a single multipart file.
      */
     public void validate(MultipartFile file) {
         if (file == null || file.isEmpty()) {
@@ -36,6 +37,18 @@ public class ImageValidator {
         String extension = extractExtension(file.getOriginalFilename());
         if (!ALLOWED_EXTENSIONS.contains(extension)) {
             throw new IllegalArgumentException("不支持的图片格式: " + extension);
+        }
+    }
+
+    /**
+     * Validate a list of multipart files. Throws immediately on first failure.
+     */
+    public void validate(List<MultipartFile> files) {
+        if (files == null || files.isEmpty()) {
+            throw new IllegalArgumentException("未上传任何图片文件");
+        }
+        for (MultipartFile file : files) {
+            validate(file);
         }
     }
 

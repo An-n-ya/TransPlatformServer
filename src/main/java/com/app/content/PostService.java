@@ -1,8 +1,8 @@
 package com.app.content;
 
 import com.app.common.PageResult;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -12,12 +12,20 @@ import java.util.List;
 public interface PostService {
 
     /**
-     * 发布帖文
-     * @param userId  用户 ID
-     * @param request 创建请求
-     * @return 帖文视图
+     * 发布帖文（JSON 方式，图片需先通过上传接口获取 URL）
      */
     PostVO createPost(Long userId, PostCreateRequest request);
+
+    /**
+     * 发布帖文（multipart 方式，直接上传图片文件）
+     *
+     * @param userId   用户 ID
+     * @param content  文字内容
+     * @param location 发布位置（可选）
+     * @param images   图片文件列表（可选）
+     * @return 帖文视图
+     */
+    PostVO createPost(Long userId, String content, String location, List<MultipartFile> images);
 
     /**
      * 获取帖文详情
