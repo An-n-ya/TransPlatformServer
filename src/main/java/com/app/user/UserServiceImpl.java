@@ -4,6 +4,8 @@ import com.app.common.JwtUtil;
 import com.app.common.PageResult;
 import com.app.config.RabbitConfig;
 import com.app.feed.FollowEventConsumer.FollowEvent;
+import com.app.notification.NotificationRepository;
+import com.app.notification.Notification;
 import com.app.upload.ImageValidator;
 import com.app.upload.StorageService;
 import com.app.upload.UploadRequest;
@@ -38,6 +40,7 @@ public class UserServiceImpl implements UserService {
     private final RabbitTemplate rabbitTemplate;
     private final StorageService storageService;
     private final ImageValidator imageValidator;
+    private final NotificationRepository notificationRepository;
 
     @Override
     @Transactional
@@ -182,6 +185,11 @@ public class UserServiceImpl implements UserService {
 
         followRepository.save(new Follow(followerId, followeeId));
         log.info("User {} followed user {}", followerId, followeeId);
+
+        if (!followeeId.equals(followerId)) {
+            notificationRepository.save(new Notification(
+                    followeeId, "follow", "关注了你", null, followerId, null));
+        }
 
         // 异步维护 Feed 列表
         rabbitTemplate.convertAndSend(RabbitConfig.USER_EXCHANGE, RabbitConfig.RK_FOLLOW_CREATED,

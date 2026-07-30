@@ -2,6 +2,7 @@ package com.app.interaction;
 
 import com.app.content.Post;
 import com.app.content.PostRepository;
+import com.app.notification.NotificationService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,6 +17,7 @@ public class CollectionServiceImpl implements CollectionService {
 
     private final CollectionRepository collectionRepository;
     private final PostRepository postRepository;
+    private final NotificationService notificationService;
 
     @Override
     @Transactional
@@ -34,6 +36,9 @@ public class CollectionServiceImpl implements CollectionService {
         collectionRepository.save(new Collection(userId, postId));
         post.setCollectionsCount(post.getCollectionsCount() + 1);
         postRepository.save(post);
+
+        notificationService.createNotification(post.getUserId(), "collection",
+                "收藏了你的帖文", post.getContent(), userId, postId);
 
         log.info("Collection created: userId={}, postId={}", userId, postId);
     }

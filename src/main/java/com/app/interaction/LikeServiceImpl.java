@@ -2,6 +2,7 @@ package com.app.interaction;
 
 import com.app.content.Post;
 import com.app.content.PostRepository;
+import com.app.notification.NotificationService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,6 +20,8 @@ public class LikeServiceImpl implements LikeService {
 
     private final LikeRepository likeRepository;
     private final PostRepository postRepository;
+    private final CommentRepository commentRepository;
+    private final NotificationService notificationService;
     private final RabbitTemplate rabbitTemplate;
 
     @Override
@@ -32,11 +35,25 @@ public class LikeServiceImpl implements LikeService {
         likeRepository.save(new Like(userId, targetType, targetId));
 
         // 更新帖文点赞计数
+        Long targetUserId;
         if ("post".equals(targetType)) {
             Post post = postRepository.findById(targetId)
                     .orElseThrow(() -> new EntityNotFoundException("帖文不存在"));
             post.setLikesCount(post.getLikesCount() + 1);
             postRepository.save(post);
+            targetUserId = post.getUserId();
+        } else if ("comment".equals(targetType)) {
+            Comment comment = commentRepository.findById(targetId)
+                    .orElseThrow(() -> new EntityNotFoundException("评论不存在"));
+            targetUserId = comment.getUserId();
+        } else {
+            targetUserId = null;
+        }
+
+        if (targetUserId != null) {
+            String title = "post".equals(targetType) ? "赞了你的帖文" : "赞了你的评论";
+            notificationService.createNotification(targetUserId, targetType + "_like",
+                    title, null, userId, targetId);
         }
 
         rabbitTemplate.convertAndSend(INTERACTION_EXCHANGE, RK_LIKE_CREATED,

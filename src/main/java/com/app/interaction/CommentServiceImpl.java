@@ -3,6 +3,7 @@ package com.app.interaction;
 import com.app.common.PageResult;
 import com.app.content.Post;
 import com.app.content.PostRepository;
+import com.app.notification.NotificationService;
 import com.app.user.UserService;
 import com.app.user.UserVO;
 import jakarta.persistence.EntityNotFoundException;
@@ -28,6 +29,7 @@ public class CommentServiceImpl implements CommentService {
     private final CommentRepository commentRepository;
     private final PostRepository postRepository;
     private final UserService userService;
+    private final NotificationService notificationService;
     private final RabbitTemplate rabbitTemplate;
 
     @Override
@@ -61,6 +63,16 @@ public class CommentServiceImpl implements CommentService {
         // 更新帖文评论计数
         post.setCommentsCount(post.getCommentsCount() + 1);
         postRepository.save(post);
+
+        // 通知帖主
+        notificationService.createNotification(post.getUserId(), "comment",
+                "评论了你的帖文", request.getContent(), userId, post.getId());
+
+        // 如果是回复，通知父评论作者
+        if (request.getParentId() != null && comment.getReplyToUserId() != null) {
+            notificationService.createNotification(comment.getReplyToUserId(), "reply",
+                    "回复了你的评论", request.getContent(), userId, comment.getParentId());
+        }
 
         rabbitTemplate.convertAndSend(INTERACTION_EXCHANGE, RK_COMMENT_CREATED,
                 new CommentEvent(comment.getId(), userId, request.getPostId()));

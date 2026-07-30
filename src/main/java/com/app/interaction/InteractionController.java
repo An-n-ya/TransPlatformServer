@@ -51,6 +51,22 @@ public class InteractionController {
         return ApiResponse.success();
     }
 
+    @PostMapping("/comments/{commentId}/like")
+    @Operation(summary = "点赞评论")
+    public ApiResponse<Void> likeComment(@AuthenticationPrincipal Long userId,
+                                         @PathVariable Long commentId) {
+        likeService.like(userId, "comment", commentId);
+        return ApiResponse.success();
+    }
+
+    @DeleteMapping("/comments/{commentId}/like")
+    @Operation(summary = "取消点赞评论")
+    public ApiResponse<Void> unlikeComment(@AuthenticationPrincipal Long userId,
+                                           @PathVariable Long commentId) {
+        likeService.unlike(userId, "comment", commentId);
+        return ApiResponse.success();
+    }
+
     // ========== 评论 ==========
 
     @PostMapping("/posts/{postId}/comments")
