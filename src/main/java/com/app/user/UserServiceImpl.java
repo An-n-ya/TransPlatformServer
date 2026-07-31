@@ -3,6 +3,8 @@ package com.app.user;
 import com.app.common.JwtUtil;
 import com.app.common.PageResult;
 import com.app.config.RabbitConfig;
+import com.app.content.Post;
+import com.app.content.PostRepository;
 import com.app.feed.FollowEventConsumer.FollowEvent;
 import com.app.notification.NotificationRepository;
 import com.app.notification.Notification;
@@ -41,6 +43,7 @@ public class UserServiceImpl implements UserService {
     private final StorageService storageService;
     private final ImageValidator imageValidator;
     private final NotificationRepository notificationRepository;
+    private final PostRepository postRepository;
 
     @Override
     @Transactional
@@ -157,6 +160,41 @@ public class UserServiceImpl implements UserService {
         }
 
         user = userRepository.save(user);
+        return UserVO.from(user);
+    }
+
+    @Override
+    @CacheEvict(value = "user", key = "#userId")
+    @Transactional
+    public UserVO setPinnedPost(Long userId, Long postId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new EntityNotFoundException("用户不存在"));
+
+        Post post = postRepository.findById(postId)
+                .orElseThrow(() -> new EntityNotFoundException("帖文不存在"));
+        if (!post.getUserId().equals(userId)) {
+            throw new SecurityException("只能置顶自己的帖文");
+        }
+        if (post.getStatus() == 0) {
+            throw new EntityNotFoundException("帖文已被删除");
+        }
+
+        user.setPinnedPostId(postId);
+        user = userRepository.save(user);
+        log.info("User {} pinned post {}", userId, postId);
+        return UserVO.from(user);
+    }
+
+    @Override
+    @CacheEvict(value = "user", key = "#userId")
+    @Transactional
+    public UserVO clearPinnedPost(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new EntityNotFoundException("用户不存在"));
+
+        user.setPinnedPostId(null);
+        user = userRepository.save(user);
+        log.info("User {} cleared pinned post", userId);
         return UserVO.from(user);
     }
 

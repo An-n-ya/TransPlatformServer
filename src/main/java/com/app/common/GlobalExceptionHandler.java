@@ -60,6 +60,12 @@ public class GlobalExceptionHandler {
         return ApiResponse.forbidden("无权访问此资源");
     }
 
+    @ExceptionHandler(SecurityException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public ApiResponse<Void> handleSecurityException(SecurityException ex) {
+        return ApiResponse.forbidden(ex.getMessage());
+    }
+
     @ExceptionHandler(IllegalStateException.class)
     @ResponseStatus(HttpStatus.CONFLICT)
     public ApiResponse<Void> handleIllegalState(IllegalStateException ex) {

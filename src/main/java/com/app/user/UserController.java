@@ -49,6 +49,19 @@ public class UserController {
         return ApiResponse.success(userService.updateUser(userId, nickname, bio, bioHeaderImg, avatarFile));
     }
 
+    @PutMapping("/me/pinned-post")
+    @Operation(summary = "设置置顶帖")
+    public ApiResponse<UserVO> setPinnedPost(@AuthenticationPrincipal Long userId,
+                                             @RequestBody @Valid SetPinnedPostRequest request) {
+        return ApiResponse.success(userService.setPinnedPost(userId, request.getPostId()));
+    }
+
+    @DeleteMapping("/me/pinned-post")
+    @Operation(summary = "取消置顶帖")
+    public ApiResponse<UserVO> clearPinnedPost(@AuthenticationPrincipal Long userId) {
+        return ApiResponse.success(userService.clearPinnedPost(userId));
+    }
+
     @GetMapping("/{userId}")
     @Operation(summary = "获取指定用户信息")
     public ApiResponse<UserVO> getUserById(@PathVariable Long userId) {

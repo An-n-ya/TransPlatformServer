@@ -16,7 +16,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
+import java.util.*;
+import java.util.stream.Collectors;
 
 import static com.app.config.RabbitConfig.INTERACTION_EXCHANGE;
 import static com.app.config.RabbitConfig.RK_COMMENT_CREATED;
@@ -105,20 +106,94 @@ public class CommentServiceImpl implements CommentService {
 
     @Override
     public PageResult<CommentVO> getPostComments(Long postId, Long currentUserId, Pageable pageable) {
-        Page<Comment> page = commentRepository.findByPostIdAndStatusAndParentIdIsNull(postId, 1, pageable);
-        List<CommentVO> vos = page.getContent().stream()
-                .map(c -> buildCommentVO(c, currentUserId))
+        // 一次性取出该帖文所有正常评论
+        List<Comment> allComments = commentRepository
+                .findByPostIdAndStatusOrderByCreatedAtAsc(postId, 1);
+
+        // 构建 parentId → children 映射
+        Map<Long, List<Comment>> childrenMap = allComments.stream()
+                .filter(c -> c.getParentId() != null)
+                .collect(Collectors.groupingBy(Comment::getParentId));
+
+        // 提取顶级评论（parentId IS NULL）做分页
+        List<Comment> roots = allComments.stream()
+                .filter(c -> c.getParentId() == null)
                 .toList();
-        return PageResult.of(vos, page.getNumber(), page.getSize(), page.getTotalElements());
+
+        int start = (int) pageable.getOffset();
+        int end = Math.min(start + pageable.getPageSize(), roots.size());
+        if (start >= roots.size()) {
+            return PageResult.empty();
+        }
+
+        List<CommentVO> vos = roots.subList(start, end).stream()
+                .map(root -> {
+                    // 递归收集所有子孙评论
+                    List<Comment> descendants = collectDescendants(root.getId(), childrenMap);
+                    long descCount = descendants.size();
+
+                    // 选 top_reply：点赞数最高，同分取最新
+                    CommentVO.CommentTopReply topReply = selectTopReply(descendants);
+
+                    CommentVO vo = buildCommentVO(root, currentUserId);
+                    vo.setCommentsCount(descCount);
+                    vo.setTopReply(topReply);
+                    return vo;
+                })
+                .toList();
+
+        return PageResult.of(vos, pageable.getPageNumber(), pageable.getPageSize(), roots.size());
     }
 
     @Override
     public PageResult<CommentVO> getCommentReplies(Long commentId, Long currentUserId, Pageable pageable) {
-        List<Comment> replies = commentRepository.findByParentIdAndStatus(commentId, 1);
-        List<CommentVO> vos = replies.stream()
+        // 一次性获取该帖文所有评论，构建树，收集所有子孙
+        Comment rootComment = commentRepository.findById(commentId)
+                .orElseThrow(() -> new EntityNotFoundException("评论不存在"));
+
+        List<Comment> allComments = commentRepository
+                .findByPostIdAndStatusOrderByCreatedAtAsc(rootComment.getPostId(), 1);
+
+        Map<Long, List<Comment>> childrenMap = allComments.stream()
+                .filter(c -> c.getParentId() != null)
+                .collect(Collectors.groupingBy(Comment::getParentId));
+
+        List<Comment> allDescendants = collectDescendants(commentId, childrenMap);
+
+        List<CommentVO> vos = allDescendants.stream()
                 .map(c -> buildCommentVO(c, currentUserId))
                 .toList();
+
         return PageResult.of(vos, 0, vos.size(), vos.size());
+    }
+
+    /** 递归收集某个评论的所有子孙评论 */
+    private List<Comment> collectDescendants(Long parentId, Map<Long, List<Comment>> childrenMap) {
+        List<Comment> result = new ArrayList<>();
+        List<Comment> directChildren = childrenMap.getOrDefault(parentId, Collections.emptyList());
+        for (Comment child : directChildren) {
+            result.add(child);
+            result.addAll(collectDescendants(child.getId(), childrenMap));
+        }
+        return result;
+    }
+
+    /** 从子孙列表中选一条作为精选回复：点赞数最高→最新 */
+    private CommentVO.CommentTopReply selectTopReply(List<Comment> descendants) {
+        if (descendants.isEmpty()) return null;
+        Comment best = descendants.stream()
+                .max(Comparator.comparingInt(Comment::getLikesCount)
+                        .thenComparing(Comment::getCreatedAt, Comparator.reverseOrder()))
+                .orElse(null);
+        if (best == null) return null;
+        UserVO author = userService.getUserById(best.getUserId());
+        return CommentVO.CommentTopReply.builder()
+                .id(best.getId())
+                .userId(best.getUserId())
+                .nickname(author.getNickname())
+                .content(best.getContent())
+                .likesCount(best.getLikesCount())
+                .build();
     }
 
     private CommentVO buildCommentVO(Comment comment, Long currentUserId) {
@@ -135,6 +210,7 @@ public class CommentServiceImpl implements CommentService {
                 .replyToUser(replyToUser)
                 .content(comment.getContent())
                 .likesCount(comment.getLikesCount())
+                .commentsCount(0L)
                 .createdAt(comment.getCreatedAt())
                 .build();
     }

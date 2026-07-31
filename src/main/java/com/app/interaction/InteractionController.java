@@ -4,6 +4,7 @@ import com.app.common.ApiResponse;
 import com.app.common.PageResult;
 import com.app.content.PostService;
 import com.app.content.PostVO;
+import com.app.interaction.Comment;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -28,6 +29,7 @@ public class InteractionController {
 
     private final LikeService likeService;
     private final CommentService commentService;
+    private final CommentRepository commentRepository;
     private final CollectionService collectionService;
     private final PostService postService;
     private final LikeRepository likeRepository;
@@ -87,11 +89,35 @@ public class InteractionController {
     }
 
     @GetMapping("/posts/{postId}/comments")
-    @Operation(summary = "获取帖文评论列表（分页）")
+    @Operation(summary = "获取帖文评论列表（分页，包含回复数）")
     public ApiResponse<PageResult<CommentVO>> getPostComments(@PathVariable Long postId,
                                                               @AuthenticationPrincipal Long userId,
                                                               @PageableDefault(size = 20) Pageable pageable) {
         return ApiResponse.success(commentService.getPostComments(postId, userId, pageable));
+    }
+
+    // ========== 回复子评论 ==========
+
+    @PostMapping("/comments/{commentId}/replies")
+    @Operation(summary = "回复评论（创建子评论）")
+    public ApiResponse<CommentVO> replyToComment(@AuthenticationPrincipal Long userId,
+                                                  @PathVariable Long commentId,
+                                                  @Valid @RequestBody CommentCreateRequest request) {
+        // 查找父评论以获取 postId 和作者
+        Comment parent = commentRepository.findById(commentId)
+                .orElseThrow(() -> new jakarta.persistence.EntityNotFoundException("评论不存在"));
+        request.setPostId(parent.getPostId());
+        request.setParentId(commentId);
+        request.setReplyToUserId(parent.getUserId());
+        return ApiResponse.success(commentService.createComment(userId, request));
+    }
+
+    @GetMapping("/comments/{commentId}/replies")
+    @Operation(summary = "获取评论的回复列表（分页）")
+    public ApiResponse<PageResult<CommentVO>> getCommentReplies(@PathVariable Long commentId,
+                                                                @AuthenticationPrincipal Long userId,
+                                                                @PageableDefault(size = 20) Pageable pageable) {
+        return ApiResponse.success(commentService.getCommentReplies(commentId, userId, pageable));
     }
 
     // ========== 收藏 ==========

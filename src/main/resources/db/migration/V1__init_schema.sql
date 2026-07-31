@@ -11,6 +11,7 @@ CREATE TABLE users (
     avatar      VARCHAR(500) DEFAULT NULL COMMENT '头像URL',
     bio              VARCHAR(200)  DEFAULT NULL COMMENT '个人简介',
     bio_header_img   VARCHAR(500)  DEFAULT NULL COMMENT '个人主页背景图URL',
+    pinned_post_id   BIGINT        DEFAULT NULL COMMENT '置顶帖文ID',
     status           INT           NOT NULL DEFAULT 1 COMMENT '1:正常 0:禁用',
     created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

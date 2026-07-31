@@ -62,6 +62,21 @@ public interface UserService {
     UserVO updateUser(Long userId, String nickname, String bio, String bioHeaderImg, MultipartFile avatarFile);
 
     /**
+     * 设置置顶帖
+     * @param userId 用户 ID
+     * @param postId 帖文 ID（必须是自己的帖文）
+     * @return 更新后的用户视图
+     */
+    UserVO setPinnedPost(Long userId, Long postId);
+
+    /**
+     * 取消置顶帖
+     * @param userId 用户 ID
+     * @return 更新后的用户视图
+     */
+    UserVO clearPinnedPost(Long userId);
+
+    /**
      * 关注用户
      * @param followerId 关注者 ID
      * @param followeeId 被关注者 ID

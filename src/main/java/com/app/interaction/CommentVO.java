@@ -24,6 +24,21 @@ public class CommentVO {
     private UserVO replyToUser;
     private String content;
     private Integer likesCount;
+    private Long commentsCount;
+    private CommentTopReply topReply;
     private List<CommentVO> replies;
     private LocalDateTime createdAt;
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Schema(description = "精选回复预览")
+    public static class CommentTopReply {
+        private Long id;
+        private Long userId;
+        private String nickname;
+        private String content;
+        private Integer likesCount;
+    }
 }
