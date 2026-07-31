@@ -45,6 +45,8 @@ public class LikeServiceImpl implements LikeService {
         } else if ("comment".equals(targetType)) {
             Comment comment = commentRepository.findById(targetId)
                     .orElseThrow(() -> new EntityNotFoundException("评论不存在"));
+            comment.setLikesCount(comment.getLikesCount() + 1);
+            commentRepository.save(comment);
             targetUserId = comment.getUserId();
         } else {
             targetUserId = null;
@@ -76,6 +78,13 @@ public class LikeServiceImpl implements LikeService {
             if (post.getLikesCount() > 0) {
                 post.setLikesCount(post.getLikesCount() - 1);
                 postRepository.save(post);
+            }
+        } else if ("comment".equals(targetType)) {
+            Comment comment = commentRepository.findById(targetId)
+                    .orElseThrow(() -> new EntityNotFoundException("评论不存在"));
+            if (comment.getLikesCount() > 0) {
+                comment.setLikesCount(comment.getLikesCount() - 1);
+                commentRepository.save(comment);
             }
         }
 

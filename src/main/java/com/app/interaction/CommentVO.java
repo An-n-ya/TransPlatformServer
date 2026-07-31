@@ -24,6 +24,7 @@ public class CommentVO {
     private UserVO replyToUser;
     private String content;
     private Integer likesCount;
+    private Boolean liked;
     private Long commentsCount;
     private CommentTopReply topReply;
     private List<CommentVO> replies;

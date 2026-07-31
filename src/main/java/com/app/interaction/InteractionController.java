@@ -108,7 +108,10 @@ public class InteractionController {
                 .orElseThrow(() -> new jakarta.persistence.EntityNotFoundException("评论不存在"));
         request.setPostId(parent.getPostId());
         request.setParentId(commentId);
-        request.setReplyToUserId(parent.getUserId());
+        // 若请求中未指定 replyToUserId，默认回复父评论作者
+        if (request.getReplyToUserId() == null) {
+            request.setReplyToUserId(parent.getUserId());
+        }
         return ApiResponse.success(commentService.createComment(userId, request));
     }
 

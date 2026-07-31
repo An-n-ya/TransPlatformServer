@@ -29,6 +29,7 @@ public class CommentServiceImpl implements CommentService {
 
     private final CommentRepository commentRepository;
     private final PostRepository postRepository;
+    private final LikeRepository likeRepository;
     private final UserService userService;
     private final NotificationService notificationService;
     private final RabbitTemplate rabbitTemplate;
@@ -202,6 +203,12 @@ public class CommentServiceImpl implements CommentService {
                 ? userService.getUserById(comment.getReplyToUserId())
                 : null;
 
+        Boolean liked = null;
+        if (currentUserId != null) {
+            liked = likeRepository.existsByUserIdAndTargetTypeAndTargetId(
+                    currentUserId, "comment", comment.getId());
+        }
+
         return CommentVO.builder()
                 .id(comment.getId())
                 .postId(comment.getPostId())
@@ -210,6 +217,7 @@ public class CommentServiceImpl implements CommentService {
                 .replyToUser(replyToUser)
                 .content(comment.getContent())
                 .likesCount(comment.getLikesCount())
+                .liked(liked)
                 .commentsCount(0L)
                 .createdAt(comment.getCreatedAt())
                 .build();
