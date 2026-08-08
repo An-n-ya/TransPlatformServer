@@ -1,6 +1,6 @@
 -- ============================================================
 -- V4: 用户表增加 pinned_post_id 字段（置顶帖）
+-- 说明：该字段已在 V1 建表时定义，本迁移为幂等空操作（no-op）
 -- ============================================================
 
-ALTER TABLE users
-  ADD COLUMN pinned_post_id BIGINT DEFAULT NULL COMMENT '置顶帖文ID' AFTER bio_header_img;
+-- 已由 V1 创建，无需重复执行
