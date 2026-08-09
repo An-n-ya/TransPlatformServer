@@ -27,13 +27,17 @@ WORKDIR /app
 # 从构建阶段复制产物
 COPY --from=build /build/target/trans-platform-*.jar app.jar
 
+# 入口脚本：修复上传目录权限后降权运行
+COPY scripts/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
 # 运行用户（非 root，更安全）
 RUN useradd -r -u 1001 appuser && chown -R appuser:appuser /app
-USER appuser
 
 EXPOSE 8081
 
 # JVM 参数可通过环境变量覆盖（如 -XX:-UseContainerSupport）
 ENV JAVA_OPTS="-XX:-UseContainerSupport -Dserver.port=8081"
 
-ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar /app/app.jar"]
+# 入口以 root 启动，修复权限后降权为 appuser 运行
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
