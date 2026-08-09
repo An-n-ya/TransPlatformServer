@@ -5,7 +5,13 @@
 set -e
 
 # ---------- 配置 ----------
-APP_DIR="$(cd "$(dirname "$0")" && pwd)"
+# 脚本可能位于项目根目录或 scripts/ 子目录，统一解析到项目根目录
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+if [ "$(basename "$SCRIPT_DIR")" = "scripts" ]; then
+    APP_DIR="$(dirname "$SCRIPT_DIR")"
+else
+    APP_DIR="$SCRIPT_DIR"
+fi
 PROFILE="${PROFILE:-dev}"
 PORT="${PORT:-8081}"
 JVM_ARGS="-XX:-UseContainerSupport -Dserver.port=${PORT}"

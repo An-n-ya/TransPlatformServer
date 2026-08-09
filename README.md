@@ -33,6 +33,39 @@
 
 ## 快速启动
 
+### 方式一：Docker 一键启动（推荐）
+
+> 一键拉起 应用 + MySQL + Redis + RabbitMQ，所有数据持久化到宿主机
+> 默认目录 `/var/opt/trans`，可通过 `DATA_DIR` 自定义。
+
+```bash
+cd scripts
+
+docker compose up -d              # 默认持久化目录 /var/opt/trans
+DATA_DIR=/mnt/data docker compose up -d   # 自定义持久化目录
+
+# 查看状态
+curl http://localhost:8081/actuator/health   # → {"status":"UP"}
+
+# 停止（保留数据）
+docker compose down
+
+# 停止并删除所有数据
+docker compose down -v
+```
+
+常用环境变量（`docker compose` 前设置）：
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `DATA_DIR` | `/var/opt/trans` | 持久化卷根目录（mysql/redis/rabbitmq/uploads） |
+| `MYSQL_PASSWORD` | `root` | MySQL root 密码 |
+| `APP_PORT` | `8081` | 应用对外端口 |
+| `JWT_SECRET` | 占位值 | 生产环境务必设置强随机密钥 |
+| `STORAGE_PROVIDER` | `mock` | 存储：`mock`/`cos`/`s3` |
+
+### 方式二：本地开发（host 运行）
+
 ### 前置条件
 
 - JDK 17+
@@ -74,7 +107,10 @@ CREATE DATABASE IF NOT EXISTS trans_platform
 ```bash
 # 开发模式
 export MYSQL_PASSWORD=root
-mvn spring-boot:run -Dspring-boot.run.profiles=dev
+./scripts/run.sh start          # 编译 + 启动（默认 8081 端口）
+./scripts/run.sh restart        # 重启
+./scripts/run.sh test           # 编译 + API 冒烟测试
+./scripts/run.sh stop           # 停止
 ```
 
 ### 4. 验证
@@ -181,6 +217,15 @@ java -jar -Dspring.profiles.active=prod \
   -DREDIS_HOST=<host> -DREDIS_PASSWORD=<pass> \
   -DRABBITMQ_HOST=<host> -DRABBITMQ_USERNAME=<user> -DRABBITMQ_PASSWORD=<pass> \
   trans-platform-1.0.0-SNAPSHOT.jar
+```
+
+
+### 使用 Docker 部署
+```bash
+# 启动前务必设置强 JWT 密钥
+JWT_SECRET=$(openssl rand -hex 32) \
+MYSQL_PASSWORD=你的密码 \
+docker compose up -d
 ```
 
 ## 未实现功能
