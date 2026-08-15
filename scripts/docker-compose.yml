@@ -35,9 +35,13 @@ services:
     command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
+      # 每次启动执行自愈脚本（建库 + root@% 授权），防止数据重置后应用无法连接
+      - --init-file=/docker-entrypoint-initdb.d/mysql-init.sql
     volumes:
       # 持久化 MySQL 数据 —— 可通过 DATA_DIR 自定义宿主目录
       - ${DATA_DIR:-/var/opt/trans}/mysql:/var/lib/mysql
+      # 自愈脚本挂载
+      - ./mysql-init.sql:/docker-entrypoint-initdb.d/mysql-init.sql:ro
     ports:
       - "${MYSQL_PORT:-3306}:3306"
     healthcheck:
