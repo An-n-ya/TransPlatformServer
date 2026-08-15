@@ -22,10 +22,11 @@ public interface PostService {
      * @param userId   用户 ID
      * @param content  文字内容
      * @param location 发布位置（可选）
+     * @param topicIds 话题 ID 列表（可选）
      * @param images   图片文件列表（可选）
      * @return 帖文视图
      */
-    PostVO createPost(Long userId, String content, String location, List<MultipartFile> images);
+    PostVO createPost(Long userId, String content, String location, List<Long> topicIds, List<MultipartFile> images);
 
     /**
      * 获取帖文详情

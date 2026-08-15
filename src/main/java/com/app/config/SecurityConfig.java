@@ -57,6 +57,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(WHITELIST.toArray(new String[0])).permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/posts/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/topics/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/search").permitAll()
                 // 用户自己的相关接口（/me/**）必须登录，需在宽泛的公开规则之前匹配
                 .requestMatchers(HttpMethod.GET, "/api/v1/users/me/**").authenticated()

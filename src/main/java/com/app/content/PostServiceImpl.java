@@ -8,6 +8,11 @@ import com.app.upload.ImageValidator;
 import com.app.upload.StorageService;
 import com.app.upload.UploadRequest;
 import com.app.upload.UploadResult;
+import com.app.topic.PostTopic;
+import com.app.topic.PostTopicRepository;
+import com.app.topic.Topic;
+import com.app.topic.TopicRepository;
+import com.app.topic.TopicVO;
 import com.app.user.UserService;
 import com.app.user.UserVO;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -45,6 +50,8 @@ public class PostServiceImpl implements PostService {
     private final UserService userService;
     private final LikeRepository likeRepository;
     private final CollectionRepository collectionRepository;
+    private final TopicRepository topicRepository;
+    private final PostTopicRepository postTopicRepository;
     private final RabbitTemplate rabbitTemplate;
     private final ObjectMapper objectMapper;
     private final StorageService storageService;
@@ -72,6 +79,9 @@ public class PostServiceImpl implements PostService {
             }
         }
 
+        // 关联话题
+        linkTopics(post.getId(), request.getTopicIds());
+
         log.info("Post created: postId={}, userId={}", post.getId(), userId);
 
         // 异步推送 Feed 流和通知
@@ -82,7 +92,7 @@ public class PostServiceImpl implements PostService {
 
     @Override
     @Transactional
-    public PostVO createPost(Long userId, String content, String location, List<MultipartFile> images) {
+    public PostVO createPost(Long userId, String content, String location, List<Long> topicIds, List<MultipartFile> images) {
         List<String> imageUrls = Collections.emptyList();
         if (images != null && !images.isEmpty()) {
             imageValidator.validate(images);
@@ -119,6 +129,9 @@ public class PostServiceImpl implements PostService {
                 postImageRepository.save(new PostImage(post.getId(), imageUrls.get(i), i));
             }
         }
+
+        // 关联话题
+        linkTopics(post.getId(), topicIds);
 
         log.info("Post created (multipart): postId={}, userId={}, images={}", post.getId(), userId, imageUrls.size());
 
@@ -206,10 +219,40 @@ public class PostServiceImpl implements PostService {
                 .likesCount(post.getLikesCount())
                 .commentsCount(post.getCommentsCount())
                 .collectionsCount(post.getCollectionsCount())
+                .topics(getTopicsByPostId(post.getId()))
                 .liked(liked)
                 .collected(collected)
                 .createdAt(post.getCreatedAt())
                 .build();
+    }
+
+    /** 关联帖文与话题 */
+    private void linkTopics(Long postId, List<Long> topicIds) {
+        if (topicIds == null || topicIds.isEmpty()) {
+            return;
+        }
+        for (Long topicId : topicIds) {
+            if (!topicRepository.existsById(topicId)) {
+                throw new EntityNotFoundException("话题不存在: id=" + topicId);
+            }
+            postTopicRepository.save(new PostTopic(postId, topicId));
+        }
+    }
+
+    /** 查询帖文关联的话题 */
+    private List<TopicVO> getTopicsByPostId(Long postId) {
+        List<PostTopic> links = postTopicRepository.findByPostId(postId);
+        if (links.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return links.stream()
+                .map(link -> {
+                    Topic topic = topicRepository.findById(link.getTopicId()).orElse(null);
+                    if (topic == null) return null;
+                    return TopicVO.from(topic, postTopicRepository.countByTopicId(topic.getId()));
+                })
+                .filter(java.util.Objects::nonNull)
+                .toList();
     }
 
     private List<String> parseImages(String imagesJson) {

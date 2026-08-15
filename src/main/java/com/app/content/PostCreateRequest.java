@@ -17,6 +17,9 @@ public class PostCreateRequest {
     @Schema(description = "图片 URL 列表（通过预签名上传后获取的 URL）")
     private List<String> images;
 
+    @Schema(description = "话题 ID 列表（一个帖文可关联多个话题）")
+    private List<Long> topicIds;
+
     @Size(max = 200, message = "位置信息最长 200 个字符")
     @Schema(description = "发布位置")
     private String location;

@@ -1,5 +1,6 @@
 package com.app.content;
 
+import com.app.topic.TopicVO;
 import com.app.user.UserVO;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
@@ -28,6 +29,7 @@ public class PostVO {
     private Integer likesCount;
     private Integer commentsCount;
     private Integer collectionsCount;
+    private List<TopicVO> topics;
     private Boolean liked;
     private Boolean collected;
     private LocalDateTime createdAt;

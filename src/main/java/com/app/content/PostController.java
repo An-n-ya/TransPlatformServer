@@ -41,8 +41,9 @@ public class PostController {
             @AuthenticationPrincipal Long userId,
             @RequestParam("content") String content,
             @RequestParam(value = "location", required = false) String location,
+            @RequestParam(value = "topicIds", required = false) List<Long> topicIds,
             @RequestParam(value = "images", required = false) List<MultipartFile> images) {
-        return ApiResponse.success(postService.createPost(userId, content, location, images));
+        return ApiResponse.success(postService.createPost(userId, content, location, topicIds, images));
     }
 
     @GetMapping("/posts/{postId}")
