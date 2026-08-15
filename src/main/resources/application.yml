@@ -22,12 +22,13 @@ spring:
   jpa:
     open-in-view: false
     hibernate:
-      ddl-auto: validate
+      # SQLite 表结构由 Flyway 管理，Hibernate 不校验/不生成
+      ddl-auto: none
     show-sql: false
     properties:
       hibernate:
         format_sql: true
-        dialect: org.hibernate.dialect.MySQLDialect
+        dialect: org.hibernate.community.dialect.SQLiteDialect
 
   flyway:
     enabled: true
@@ -79,14 +80,11 @@ spring:
       on-profile: dev
 
   datasource:
-    url: jdbc:mysql://localhost:3306/trans_platform?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=UTF-8
-    username: root
-    password: ${MYSQL_PASSWORD:root}
-    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:sqlite:${SQLITE_PATH:data/trans_platform.db}
+    driver-class-name: org.sqlite.JDBC
     hikari:
-      maximum-pool-size: 20
-      minimum-idle: 5
-      idle-timeout: 300000
+      # SQLite 单写者模型，连接池用 1 避免数据库锁冲突
+      maximum-pool-size: 1
       connection-timeout: 20000
 
   data:
@@ -145,14 +143,12 @@ spring:
       on-profile: prod
 
   datasource:
-    url: jdbc:mysql://${MYSQL_HOST:localhost}:3306/trans_platform?useSSL=true&serverTimezone=Asia/Shanghai&characterEncoding=UTF-8
-    username: ${MYSQL_USERNAME}
-    password: ${MYSQL_PASSWORD}
-    driver-class-name: com.mysql.cj.jdbc.Driver
+    # SQLite 文件路径，Docker 部署时挂载持久化卷
+    url: jdbc:sqlite:${SQLITE_PATH:/app/data/trans_platform.db}
+    driver-class-name: org.sqlite.JDBC
     hikari:
-      maximum-pool-size: 50
-      minimum-idle: 10
-      idle-timeout: 300000
+      # SQLite 单写者模型，连接池用 1 避免数据库锁冲突
+      maximum-pool-size: 1
       connection-timeout: 20000
 
   data:
@@ -190,17 +186,15 @@ spring:
       on-profile: test
 
   datasource:
-    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;MODE=MYSQL;
-    username: sa
-    password:
-    driver-class-name: org.h2.Driver
+    url: "jdbc:sqlite::memory:"
+    driver-class-name: org.sqlite.JDBC
 
   jpa:
     hibernate:
       ddl-auto: update
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.H2Dialect
+        dialect: org.hibernate.community.dialect.SQLiteDialect
 
   flyway:
     enabled: false

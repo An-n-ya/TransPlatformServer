@@ -68,13 +68,6 @@ check_infra() {
   echo ""
   info "检查基础设施..."
 
-  if docker ps --format '{{.Names}}' 2>/dev/null | grep -q mysql; then
-    ok "MySQL        🟢 运行中"
-  else
-    warn "MySQL        ⚪ 未运行 (docker start mysql8)"
-    ok=false
-  fi
-
   if docker ps --format '{{.Names}}' 2>/dev/null | grep -q redis; then
     ok "Redis        🟢 运行中"
   else
@@ -89,11 +82,18 @@ check_infra() {
     ok=false
   fi
 
+  # SQLite 无需额外基础设施，数据库文件位于 ${APP_DIR}/data/trans_platform.db
+  if [ -f "${APP_DIR}/data/trans_platform.db" ]; then
+    ok "SQLite       🟢 数据库就绪"
+  else
+    ok "SQLite       🟡 首次启动将自动创建数据库"
+  fi
+
   if [ "$ok" = false ]; then
     echo ""
     warn "部分基础设施未启动，如需一键启动:"
-    echo "  docker start mysql8 redis7 rabbitmq 2>/dev/null || \\"
-    echo "  docker compose -f ${APP_DIR}/docker-compose.yml up -d"
+    echo "  docker start redis7 rabbitmq 2>/dev/null || \\"
+    echo "  docker compose -f ${APP_DIR}/scripts/docker-compose.yml up -d"
     echo ""
   fi
 }

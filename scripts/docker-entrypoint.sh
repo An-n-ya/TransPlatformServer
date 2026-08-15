@@ -9,9 +9,9 @@
 # =====================================================================
 set -e
 
-echo "[entrypoint] 初始化上传目录权限..."
-mkdir -p /app/uploads
-chown -R appuser:appuser /app/uploads
+echo "[entrypoint] 初始化数据目录权限..."
+mkdir -p /app/uploads /app/data
+chown -R appuser:appuser /app/uploads /app/data
 
 # 指定 Java 完整路径（su 切换用户后 PATH 可能不含 java）
 JAVA_BIN="${JAVA_HOME:-/opt/java/openjdk}/bin/java"

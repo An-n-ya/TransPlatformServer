@@ -20,7 +20,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
      * 按用户名或昵称模糊搜索（仅正常用户）
      */
     @Query("SELECT u FROM User u WHERE u.status = 1 " +
-            "AND (u.username LIKE CONCAT('%', :keyword, '%') " +
-            "     OR u.nickname LIKE CONCAT('%', :keyword, '%'))")
+            "AND (u.username LIKE '%' || :keyword || '%' " +
+            "     OR u.nickname LIKE '%' || :keyword || '%')")
     Page<User> searchByKeyword(@Param("keyword") String keyword, Pageable pageable);
 }

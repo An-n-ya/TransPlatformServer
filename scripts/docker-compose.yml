@@ -1,5 +1,5 @@
 # =====================================================================
-# TransPlatform — 一键启动编排
+# TransPlatform — 一键启动编排（SQLite 版）
 #
 # 用法:
 #   cd scripts
@@ -8,49 +8,20 @@
 #
 # 停止:
 #   docker compose down                  # 停止（保留数据）
-#   docker compose down -v              # 停止并删除数据卷
 # =====================================================================
 
 x-app-env: &app-env
   SPRING_PROFILES_ACTIVE: prod
-  MYSQL_HOST: mysql
-  MYSQL_USERNAME: root
-  MYSQL_PASSWORD: ${MYSQL_PASSWORD:-root}
   REDIS_HOST: redis
   RABBITMQ_HOST: rabbitmq
   RABBITMQ_USERNAME: guest
   RABBITMQ_PASSWORD: guest
+  # SQLite 数据库文件路径（挂载持久化卷）
+  SQLITE_PATH: /app/data/trans_platform.db
   # 生产环境务必替换为强随机密钥（至少 32 字符）
   JWT_SECRET: ${JWT_SECRET:-CHANGE_ME_PRODUCTION_SECRET_32_CHARS_MIN}
 
 services:
-  mysql:
-    image: mysql:8.0
-    container_name: trans-mysql
-    restart: unless-stopped
-    environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD:-root}
-      MYSQL_DATABASE: trans_platform
-      TZ: Asia/Shanghai
-    command:
-      - --character-set-server=utf8mb4
-      - --collation-server=utf8mb4_unicode_ci
-      # 每次启动执行自愈脚本（建库 + root@% 授权），防止数据重置后应用无法连接
-      - --init-file=/docker-entrypoint-initdb.d/mysql-init.sql
-    volumes:
-      # 持久化 MySQL 数据 —— 可通过 DATA_DIR 自定义宿主目录
-      - ${DATA_DIR:-/var/opt/trans}/mysql:/var/lib/mysql
-      # 自愈脚本挂载
-      - ./mysql-init.sql:/docker-entrypoint-initdb.d/mysql-init.sql:ro
-    ports:
-      - "${MYSQL_PORT:-3306}:3306"
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_PASSWORD:-root}"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
-
   redis:
     image: redis:7
     container_name: trans-redis
@@ -101,13 +72,13 @@ services:
       COS_REGION: ${COS_REGION:-}
       COS_BUCKET: ${COS_BUCKET:-}
     volumes:
+      # 持久化 SQLite 数据库 —— 默认宿主目录 /var/opt/trans/data
+      - ${DATA_DIR:-/var/opt/trans}/data:/app/data
       # 持久化上传文件 —— 默认宿主目录 /var/opt/trans/uploads
       - ${DATA_DIR:-/var/opt/trans}/uploads:/app/uploads
     ports:
       - "${APP_PORT:-8081}:8081"
     depends_on:
-      mysql:
-        condition: service_healthy
       redis:
         condition: service_healthy
       rabbitmq:

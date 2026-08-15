@@ -25,7 +25,7 @@
 | 框架 | Spring Boot 3.2.5 |
 | 认证 | Spring Security + JWT (jjwt 0.12.5) |
 | ORM | Spring Data JPA + Hibernate |
-| 数据库 | MySQL 8.0 (Flyway 迁移) |
+| 数据库 | SQLite (Flyway 迁移，单文件持久化) |
 | 缓存 | Redis 7.x (Spring Cache) |
 | 消息队列 | RabbitMQ |
 | 文档 | SpringDoc OpenAPI 2.5.0 |
@@ -35,7 +35,7 @@
 
 ### 方式一：Docker 一键启动（推荐）
 
-> 一键拉起 应用 + MySQL + Redis + RabbitMQ，所有数据持久化到宿主机
+> 一键拉起 应用 + Redis + RabbitMQ，SQLite 数据库单文件持久化到宿主机
 > 默认目录 `/var/opt/trans`，可通过 `DATA_DIR` 自定义。
 
 ```bash
@@ -58,8 +58,8 @@ docker compose down -v
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
-| `DATA_DIR` | `/var/opt/trans` | 持久化卷根目录（mysql/redis/rabbitmq/uploads） |
-| `MYSQL_PASSWORD` | `root` | MySQL root 密码 |
+| `DATA_DIR` | `/var/opt/trans` | 持久化卷根目录（data/redis/rabbitmq/uploads） |
+
 | `APP_PORT` | `8081` | 应用对外端口 |
 | `JWT_SECRET` | 占位值 | 生产环境务必设置强随机密钥 |
 | `STORAGE_PROVIDER` | `mock` | 存储：`mock`/`cos`/`s3` |
@@ -69,21 +69,14 @@ docker compose down -v
 ### 前置条件
 
 - JDK 17+
-- Docker & Docker Compose（或本地安装 MySQL 8.0 + Redis 7.x + RabbitMQ）
+- Docker & Docker Compose（或本地安装 Redis 7.x + RabbitMQ）
 - Maven 3.8+
 
 ### 1. 启动基础设施
 
 ```bash
-# 使用 Docker Compose 启动 MySQL + Redis + RabbitMQ
-# （需要先创建 docker-compose.yml，或使用现有实例）
-
-# MySQL
-docker run -d --name mysql8 \
-  -e MYSQL_ROOT_PASSWORD=root \
-  -e MYSQL_DATABASE=trans_platform \
-  -p 3306:3306 \
-  mysql:8.0
+# 使用 Docker Compose 启动 Redis + RabbitMQ
+# SQLite 数据库无需额外服务，首次启动自动创建 data/trans_platform.db
 
 # Redis
 docker run -d --name redis7 -p 6379:6379 redis:7
@@ -94,13 +87,10 @@ docker run -d --name rabbitmq \
   rabbitmq:3-management
 ```
 
-### 2. 创建数据库
+### 2. 数据库说明
 
-```sql
-CREATE DATABASE IF NOT EXISTS trans_platform
-  DEFAULT CHARACTER SET utf8mb4
-  DEFAULT COLLATE utf8mb4_unicode_ci;
-```
+SQLite 单文件数据库，首次启动由 Flyway 自动建表（V1-V2 迁移）。
+本地开发路径：`data/trans_platform.db`；Docker 部署路径：`/app/data/trans_platform.db`（挂载到宿主机 `DATA_DIR/data/`）。
 
 ### 3. 启动应用
 
@@ -240,7 +230,7 @@ docker compose up -d
 
 ## 设计决策
 
-- **不引入 ES**: 1000 人规模下 MySQL 查询足够
+- **不引入 ES**: 1000 人规模下 SQLite/MySQL 查询足够
 - **不实现推荐算法**: Feed 流基于关注时间线排序
 - **轻量 WebSocket**: Spring 原生支持，内存存储 Session
 - **简化私信**: 只记录未读数量，不实现已读/未读复杂状态
