@@ -11,6 +11,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 /**
  * 话题控制器 — CRUD
  */
@@ -33,6 +35,13 @@ public class TopicController {
     public ApiResponse<PageResult<TopicVO>> listTopics(
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return ApiResponse.success(topicService.listTopics(pageable));
+    }
+
+    @GetMapping("/hot")
+    @Operation(summary = "热门话题（按参与人数最多的前 10 个）")
+    public ApiResponse<List<TopicVO>> getHotTopics(
+            @RequestParam(defaultValue = "10") int limit) {
+        return ApiResponse.success(topicService.getHotTopics(Math.min(limit, 50)));
     }
 
     @GetMapping("/{topicId}")
