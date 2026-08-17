@@ -37,6 +37,9 @@ public class User extends BaseEntity {
     @Column(name = "pinned_post_id")
     private Long pinnedPostId;
 
+    @Column(nullable = false, length = 20)
+    private String role = "user";
+
     @Column(nullable = false)
     private Integer status = 1;
 
@@ -44,6 +47,7 @@ public class User extends BaseEntity {
         this.username = username;
         this.nickname = nickname;
         this.password = password;
+        this.role = "user";
         this.status = 1;
     }
 }

@@ -40,6 +40,11 @@ spring:
       max-file-size: 10MB
       max-request-size: 50MB
 
+# Admin bootstrap (首次启动自动创建管理员)
+admin:
+  username: ${ADMIN_USERNAME:admin}
+  password: ${ADMIN_PASSWORD:admin123}
+
 # JWT Configuration
 jwt:
   secret: ${JWT_SECRET:TEMP_DEV_SECRET_CHANGE_IN_PROD_AT_LEAST_32_CHARS}

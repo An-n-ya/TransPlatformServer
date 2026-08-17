@@ -25,6 +25,7 @@ public class UserVO {
     private String bio;
     private String bioHeaderImg;
     private Long pinnedPostId;
+    private String role;
     private Integer status;
     private Long followersCount;
     private Long followeesCount;
@@ -39,6 +40,7 @@ public class UserVO {
                 .bio(user.getBio())
                 .bioHeaderImg(user.getBioHeaderImg())
                 .pinnedPostId(user.getPinnedPostId())
+                .role(user.getRole())
                 .status(user.getStatus())
                 .createdAt(user.getCreatedAt())
                 .build();

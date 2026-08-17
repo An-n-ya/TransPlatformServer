@@ -6,6 +6,7 @@ import com.app.config.RabbitConfig;
 import com.app.content.Post;
 import com.app.content.PostRepository;
 import com.app.feed.FollowEventConsumer.FollowEvent;
+import com.app.invitation.InvitationService;
 import com.app.notification.NotificationRepository;
 import com.app.notification.Notification;
 import com.app.upload.ImageValidator;
@@ -44,6 +45,7 @@ public class UserServiceImpl implements UserService {
     private final ImageValidator imageValidator;
     private final NotificationRepository notificationRepository;
     private final PostRepository postRepository;
+    private final InvitationService invitationService;
 
     @Override
     @Transactional
@@ -58,6 +60,9 @@ public class UserServiceImpl implements UserService {
                 passwordEncoder.encode(request.getPassword())
         );
         user = userRepository.save(user);
+
+        // 校验并消耗邀请码（必须在创建用户之后，记录被邀请人）
+        invitationService.validateAndUse(request.getInvitationCode(), user.getId());
 
         return buildAuthResponse(user);
     }

@@ -23,4 +23,9 @@ public class RegisterRequest {
     @Size(min = 6, max = 100, message = "密码长度 6-100 个字符")
     @Schema(description = "密码", example = "password123")
     private String password;
+
+    @NotBlank(message = "邀请码不能为空")
+    @Size(max = 16, message = "邀请码最长 16 个字符")
+    @Schema(description = "邀请码", example = "ABCDEFGH12345678")
+    private String invitationCode;
 }
