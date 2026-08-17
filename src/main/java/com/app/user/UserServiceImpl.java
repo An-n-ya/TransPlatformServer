@@ -97,6 +97,11 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    public boolean isUsernameTaken(String username) {
+        return userRepository.existsByUsername(username);
+    }
+
+    @Override
     @Cacheable(value = "user", key = "#userId", unless = "#result == null")
     public UserVO getCurrentUser(Long userId) {
         User user = userRepository.findById(userId)

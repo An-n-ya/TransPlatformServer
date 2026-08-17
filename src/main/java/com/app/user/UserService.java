@@ -31,6 +31,13 @@ public interface UserService {
     AuthResponse refreshToken(String refreshToken);
 
     /**
+     * 校验用户名是否已被占用
+     * @param username 待校验用户名
+     * @return true 已被占用
+     */
+    boolean isUsernameTaken(String username);
+
+    /**
      * 获取当前用户信息
      * @param userId 用户 ID
      * @return 用户视图对象
