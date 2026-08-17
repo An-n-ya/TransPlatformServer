@@ -61,11 +61,12 @@ public class PostController {
         return ApiResponse.success();
     }
 
-    @GetMapping("/users/{userId}/posts")
-    @Operation(summary = "获取指定用户的帖文列表（分页）")
-    public ApiResponse<PageResult<PostVO>> getUserPosts(@PathVariable Long userId,
-                                                        @AuthenticationPrincipal Long currentUserId,
-                                                        @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return ApiResponse.success(postService.getUserPosts(userId, currentUserId, pageable));
+    @GetMapping("/posts")
+    @Operation(summary = "统一查询帖文（JSON body：postId/userId/topicId/content，至少提供一个）")
+    public ApiResponse<PageResult<PostVO>> queryPosts(
+            @RequestBody(required = false) PostQueryRequest query,
+            @AuthenticationPrincipal Long currentUserId,
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        return ApiResponse.success(postService.queryPosts(query, currentUserId, pageable));
     }
 }

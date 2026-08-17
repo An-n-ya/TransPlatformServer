@@ -42,9 +42,14 @@ public interface PostService {
     void deletePost(Long postId, Long currentUserId);
 
     /**
-     * 获取指定用户的帖文列表（分页）
+     * 统一查询帖文（JSON 参数：postId / userId / topicId / content）
+     *
+     * @param query         查询条件（postId / userId / topicId / content），
+     *                     content 存在时必须提供 userId；至少提供一个查询参数
+     * @param currentUserId 当前登录用户（用于判断点赞/收藏，可为 null）
+     * @param pageable      分页参数
      */
-    PageResult<PostVO> getUserPosts(Long userId, Long currentUserId, Pageable pageable);
+    PageResult<PostVO> queryPosts(PostQueryRequest query, Long currentUserId, Pageable pageable);
 
     /**
      * 根据ID批量查询帖文（用于 Feed 流）

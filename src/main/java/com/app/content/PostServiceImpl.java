@@ -183,8 +183,40 @@ public class PostServiceImpl implements PostService {
     }
 
     @Override
-    public PageResult<PostVO> getUserPosts(Long userId, Long currentUserId, Pageable pageable) {
-        Page<Post> page = postRepository.findByUserIdAndStatus(userId, 1, pageable);
+    public PageResult<PostVO> queryPosts(PostQueryRequest query, Long currentUserId, Pageable pageable) {
+        // 1. 按 postId 查询单篇
+        if (query != null && query.getPostId() != null) {
+            Post post = postRepository.findById(query.getPostId())
+                    .filter(p -> p.getStatus() == 1)
+                    .orElseThrow(() -> new EntityNotFoundException("帖文不存在"));
+            return PageResult.of(List.of(buildPostVO(post, currentUserId)), 0, pageable.getPageSize(), 1);
+        }
+
+        Page<Post> page;
+
+        // 2. 按内容模糊匹配（必须提供 userId）
+        if (query != null && query.getContent() != null && !query.getContent().isBlank()) {
+            if (query.getUserId() == null) {
+                throw new IllegalArgumentException("按内容查询时必须提供 userId");
+            }
+            page = postRepository.findByUserIdAndContentContaining(
+                    query.getUserId(), query.getContent().trim(), pageable);
+        }
+        // 3. 按话题查询（可选叠加 userId）
+        else if (query != null && query.getTopicId() != null) {
+            page = query.getUserId() != null
+                    ? postRepository.findByUserIdAndTopicId(query.getUserId(), query.getTopicId(), pageable)
+                    : postRepository.findByTopicId(query.getTopicId(), pageable);
+        }
+        // 4. 按用户查询
+        else if (query != null && query.getUserId() != null) {
+            page = postRepository.findByUserIdAndStatus(query.getUserId(), 1, pageable);
+        }
+        // 5. 无条件：未提供任何查询参数，报错提示
+        else {
+            throw new IllegalArgumentException("请提供至少一个查询参数：postId / userId / topicId / content");
+        }
+
         List<PostVO> vos = page.getContent().stream()
                 .map(post -> buildPostVO(post, currentUserId))
                 .toList();
