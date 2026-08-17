@@ -22,7 +22,6 @@ public class TopicVO {
     private String name;
     private String description;
     private Long postCount;
-    private Long participantCount;
     private LocalDateTime createdAt;
 
     public static TopicVO from(Topic topic, Long postCount) {

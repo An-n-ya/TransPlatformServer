@@ -12,6 +12,7 @@ import com.app.topic.PostTopic;
 import com.app.topic.PostTopicRepository;
 import com.app.topic.Topic;
 import com.app.topic.TopicRepository;
+import com.app.topic.TopicService;
 import com.app.topic.TopicVO;
 import com.app.user.UserService;
 import com.app.user.UserVO;
@@ -52,6 +53,7 @@ public class PostServiceImpl implements PostService {
     private final CollectionRepository collectionRepository;
     private final TopicRepository topicRepository;
     private final PostTopicRepository postTopicRepository;
+    private final TopicService topicService;
     private final RabbitTemplate rabbitTemplate;
     private final ObjectMapper objectMapper;
     private final StorageService storageService;
@@ -164,8 +166,19 @@ public class PostServiceImpl implements PostService {
             throw new SecurityException("无权删除他人的帖文");
         }
 
+        // 删除前记录关联话题，用于递减 Redis 计数
+        List<Long> topicIds = postTopicRepository.findByPostId(postId).stream()
+                .map(PostTopic::getTopicId)
+                .toList();
+
         post.setStatus(0);
         postRepository.save(post);
+
+        // 递减话题帖数计数
+        for (Long topicId : topicIds) {
+            topicService.decrementPostCount(topicId);
+        }
+
         log.info("Post deleted: postId={}, userId={}", postId, currentUserId);
     }
 
@@ -236,6 +249,8 @@ public class PostServiceImpl implements PostService {
                 throw new EntityNotFoundException("话题不存在: id=" + topicId);
             }
             postTopicRepository.save(new PostTopic(postId, topicId));
+            // Redis 帖数计数 +1
+            topicService.incrementPostCount(topicId);
         }
     }
 

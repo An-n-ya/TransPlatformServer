@@ -23,15 +23,14 @@ public interface PostTopicRepository extends JpaRepository<PostTopic, Long> {
     List<PostTopic> findByTopicIdIn(List<Long> topicIds);
 
     /**
-     * 热门话题：按参与人数（去重用户数）降序
-     * 返回 [topicId, participantCount] 行数组
+     * 重建话题帖数：按话题分组统计有效帖文数（用于 Redis 冷启动回填）
+     * 返回 [topicId, postCount] 行数组
      */
-    @Query(value = "SELECT pt.topic_id, COUNT(DISTINCT p.user_id) " +
+    @Query(value = "SELECT pt.topic_id, COUNT(*) " +
             "FROM post_topics pt " +
             "JOIN posts p ON p.id = pt.post_id " +
             "WHERE p.status = 1 " +
-            "GROUP BY pt.topic_id " +
-            "ORDER BY COUNT(DISTINCT p.user_id) DESC",
+            "GROUP BY pt.topic_id",
             nativeQuery = true)
-    List<Object[]> findHotTopicsByParticipants(Pageable pageable);
+    List<Object[]> countPostsByTopic();
 }

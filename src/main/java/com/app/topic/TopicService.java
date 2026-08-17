@@ -41,8 +41,18 @@ public interface TopicService {
     PageResult<TopicVO> searchTopics(String keyword, Pageable pageable);
 
     /**
-     * 热门话题：按参与人数（去重用户数）最多的前 N 个
+     * 热门话题：帖文数最多的前 N 个（基于 Redis 计数）
      * @param limit 返回数量（默认 10）
      */
     List<TopicVO> getHotTopics(int limit);
+
+    /**
+     * 帖文发布时调用：话题帖数 +1（Redis 计数）
+     */
+    void incrementPostCount(Long topicId);
+
+    /**
+     * 帖文删除时调用：话题帖数 -1（Redis 计数，归零移除）
+     */
+    void decrementPostCount(Long topicId);
 }

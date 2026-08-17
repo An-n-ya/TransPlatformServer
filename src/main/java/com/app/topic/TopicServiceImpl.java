@@ -5,13 +5,16 @@ import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -19,8 +22,12 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class TopicServiceImpl implements TopicService {
 
+    /** 话题帖数排名 ZSET：member=topicId, score=有效帖文数 */
+    private static final String HOT_TOPIC_KEY = "topic:hot";
+
     private final TopicRepository topicRepository;
     private final PostTopicRepository postTopicRepository;
+    private final StringRedisTemplate stringRedisTemplate;
 
     @Override
     @Transactional
@@ -48,10 +55,8 @@ public class TopicServiceImpl implements TopicService {
         topic.setDescription(request.getDescription());
         topic = topicRepository.save(topic);
 
-        // TODO: 直接从数据库获取topicCount太消耗数据库，这个数据可以缓存到redis。当新增贴文时，增加对应的count计数，只有在redis中查询不到的时候，才考虑在数据库中查找,并在查找成功后，重新载入redis
-        long postCount = postTopicRepository.countByTopicId(topicId);
         log.info("Topic updated: id={}", topicId);
-        return TopicVO.from(topic, postCount);
+        return TopicVO.from(topic, getPostCount(topicId));
     }
 
     @Override
@@ -60,8 +65,9 @@ public class TopicServiceImpl implements TopicService {
         Topic topic = topicRepository.findById(topicId)
                 .orElseThrow(() -> new EntityNotFoundException("话题不存在"));
 
-        // 清理帖文关联
+        // 清理帖文关联与 Redis 计数
         postTopicRepository.deleteByTopicId(topicId);
+        stringRedisTemplate.opsForZSet().remove(HOT_TOPIC_KEY, topicId.toString());
         topicRepository.delete(topic);
         log.info("Topic deleted: id={}, name={}", topicId, topic.getName());
     }
@@ -70,67 +76,97 @@ public class TopicServiceImpl implements TopicService {
     public TopicVO getTopic(Long topicId) {
         Topic topic = topicRepository.findById(topicId)
                 .orElseThrow(() -> new EntityNotFoundException("话题不存在"));
-        return TopicVO.from(topic, postTopicRepository.countByTopicId(topicId));
+        return TopicVO.from(topic, getPostCount(topicId));
     }
 
     @Override
     public PageResult<TopicVO> listTopics(Pageable pageable) {
         Page<Topic> page = topicRepository.findAll(pageable);
-        List<TopicVO> vos = attachPostCount(page.getContent());
+        List<TopicVO> vos = page.getContent().stream()
+                .map(t -> TopicVO.from(t, getPostCount(t.getId())))
+                .toList();
         return PageResult.of(vos, page.getNumber(), page.getSize(), page.getTotalElements());
     }
 
     @Override
     public PageResult<TopicVO> searchTopics(String keyword, Pageable pageable) {
         Page<Topic> page = topicRepository.findByNameContainingIgnoreCase(keyword, pageable);
-        List<TopicVO> vos = attachPostCount(page.getContent());
+        List<TopicVO> vos = page.getContent().stream()
+                .map(t -> TopicVO.from(t, getPostCount(t.getId())))
+                .toList();
         return PageResult.of(vos, page.getNumber(), page.getSize(), page.getTotalElements());
     }
 
     @Override
     public List<TopicVO> getHotTopics(int limit) {
-        List<Object[]> rows = postTopicRepository
-                .findHotTopicsByParticipants(PageRequest.of(0, limit));
-        if (rows.isEmpty()) {
+        // Redis ZSET 直接按帖数取前 N
+        Set<ZSetOperations.TypedTuple<String>> tuples =
+                stringRedisTemplate.opsForZSet().reverseRangeWithScores(HOT_TOPIC_KEY, 0, limit - 1);
+
+        // Redis 冷启动（ZSET 为空）时从数据库重建
+        if (tuples == null || tuples.isEmpty()) {
+            rebuildHotTopics();
+            tuples = stringRedisTemplate.opsForZSet()
+                    .reverseRangeWithScores(HOT_TOPIC_KEY, 0, limit - 1);
+        }
+        if (tuples == null || tuples.isEmpty()) {
             return List.of();
         }
 
-        List<Long> topicIds = rows.stream()
-                .map(r -> ((Number) r[0]).longValue())
-                .toList();
-        Map<Long, Long> participantMap = rows.stream()
-                .collect(Collectors.toMap(
-                        r -> ((Number) r[0]).longValue(),
-                        r -> ((Number) r[1]).longValue()));
-
-        // 批量查帖数，保持排序
-        List<PostTopic> links = postTopicRepository.findByTopicIdIn(topicIds);
-        Map<Long, Long> postCountMap = links.stream()
-                .collect(Collectors.groupingBy(PostTopic::getTopicId, Collectors.counting()));
-
-        return topicIds.stream()
-                .map(id -> topicRepository.findById(id).orElse(null))
-                .filter(java.util.Objects::nonNull)
-                .map(topic -> {
-                    TopicVO vo = TopicVO.from(topic, postCountMap.getOrDefault(topic.getId(), 0L));
-                    vo.setParticipantCount(participantMap.getOrDefault(topic.getId(), 0L));
-                    return vo;
+        return tuples.stream()
+                .map(t -> {
+                    Long topicId = Long.parseLong(t.getValue());
+                    return topicRepository.findById(topicId).orElse(null);
                 })
+                .filter(Objects::nonNull)
+                .map(t -> TopicVO.from(t, getPostCount(t.getId())))
                 .toList();
     }
 
-    /** 批量统计话题下帖文数 */
-    private List<TopicVO> attachPostCount(List<Topic> topics) {
-        if (topics.isEmpty()) {
-            return List.of();
-        }
-        List<Long> topicIds = topics.stream().map(Topic::getId).toList();
-        List<PostTopic> links = postTopicRepository.findByTopicIdIn(topicIds);
-        Map<Long, Long> countMap = links.stream()
-                .collect(Collectors.groupingBy(PostTopic::getTopicId, Collectors.counting()));
+    // =====================================================================
+    // Redis 计数（完成 TODO：帖数缓存在 Redis，发帖时自增，
+    // 只有 Redis 未命中时才查数据库，查完后回填 Redis）
+    // =====================================================================
 
-        return topics.stream()
-                .map(t -> TopicVO.from(t, countMap.getOrDefault(t.getId(), 0L)))
-                .toList();
+    /** 帖文发布时调用：话题帖数 +1 */
+    @Transactional
+    public void incrementPostCount(Long topicId) {
+        stringRedisTemplate.opsForZSet().incrementScore(HOT_TOPIC_KEY, topicId.toString(), 1);
+    }
+
+    /** 帖文删除时调用：话题帖数 -1，归零则移除 */
+    @Transactional
+    public void decrementPostCount(Long topicId) {
+        Double score = stringRedisTemplate.opsForZSet()
+                .incrementScore(HOT_TOPIC_KEY, topicId.toString(), -1);
+        if (score != null && score <= 0) {
+            stringRedisTemplate.opsForZSet().remove(HOT_TOPIC_KEY, topicId.toString());
+        }
+    }
+
+    /**
+     * 获取话题帖数：Redis 优先（ZSCORE），
+     * 未命中 → 查数据库 → 回填 Redis
+     */
+    private Long getPostCount(Long topicId) {
+        Double score = stringRedisTemplate.opsForZSet()
+                .score(HOT_TOPIC_KEY, topicId.toString());
+        if (score != null) {
+            return score.longValue();
+        }
+        Long count = postTopicRepository.countByTopicId(topicId);
+        stringRedisTemplate.opsForZSet().add(HOT_TOPIC_KEY, topicId.toString(), count);
+        return count;
+    }
+
+    /** Redis 冷启动：从数据库重建全部话题帖数 */
+    private void rebuildHotTopics() {
+        List<Object[]> rows = postTopicRepository.countPostsByTopic();
+        for (Object[] row : rows) {
+            Long topicId = ((Number) row[0]).longValue();
+            long count = ((Number) row[1]).longValue();
+            stringRedisTemplate.opsForZSet().add(HOT_TOPIC_KEY, topicId.toString(), count);
+        }
+        log.debug("Hot topics rebuilt from DB: {} topics", rows.size());
     }
 }
