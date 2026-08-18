@@ -34,6 +34,9 @@ public class User extends BaseEntity {
     @Column(name = "bio_header_img", length = 500)
     private String bioHeaderImg;
 
+    @Column(length = 255)
+    private String email;
+
     @Column(name = "pinned_post_id")
     private Long pinnedPostId;
 

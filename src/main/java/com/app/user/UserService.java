@@ -106,4 +106,38 @@ public interface UserService {
      * 获取关注列表（分页）
      */
     PageResult<UserVO> getFollowees(Long userId, Pageable pageable);
+
+    /**
+     * 发送邮箱验证码（验证/绑定邮箱）
+     *
+     * @param userId 当前用户 ID
+     * @param email  待验证邮箱
+     */
+    void sendEmailVerificationCode(Long userId, String email);
+
+    /**
+     * 校验验证码并绑定邮箱到当前用户
+     *
+     * @param userId 当前用户 ID
+     * @param email  待绑定邮箱
+     * @param code   验证码
+     * @return 更新后的用户视图
+     */
+    UserVO verifyEmail(Long userId, String email, String code);
+
+    /**
+     * 发送找回密码验证码
+     *
+     * @param email 已注册邮箱
+     */
+    void sendPasswordResetCode(String email);
+
+    /**
+     * 校验验证码并重置密码
+     *
+     * @param email       已注册邮箱
+     * @param code        验证码
+     * @param newPassword 新密码
+     */
+    void resetPassword(String email, String code, String newPassword);
 }

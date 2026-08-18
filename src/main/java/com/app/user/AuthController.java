@@ -35,4 +35,18 @@ public class AuthController {
     public ApiResponse<AuthResponse> refresh(@Valid @RequestBody RefreshTokenRequest request) {
         return ApiResponse.success(userService.refreshToken(request.getRefreshToken()));
     }
+
+    @PostMapping("/password/send-reset-code")
+    @Operation(summary = "发送找回密码验证码")
+    public ApiResponse<Void> sendPasswordResetCode(@Valid @RequestBody EmailRequest request) {
+        userService.sendPasswordResetCode(request.getEmail());
+        return ApiResponse.success();
+    }
+
+    @PostMapping("/password/reset")
+    @Operation(summary = "重置密码（验证码校验通过后）")
+    public ApiResponse<Void> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        userService.resetPassword(request.getEmail(), request.getCode(), request.getNewPassword());
+        return ApiResponse.success();
+    }
 }

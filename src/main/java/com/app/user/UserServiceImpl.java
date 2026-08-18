@@ -5,6 +5,7 @@ import com.app.common.PageResult;
 import com.app.config.RabbitConfig;
 import com.app.content.Post;
 import com.app.content.PostRepository;
+import com.app.email.VerificationCodeService;
 import com.app.feed.FollowEventConsumer.FollowEvent;
 import com.app.invitation.InvitationService;
 import com.app.notification.NotificationRepository;
@@ -46,6 +47,7 @@ public class UserServiceImpl implements UserService {
     private final NotificationRepository notificationRepository;
     private final PostRepository postRepository;
     private final InvitationService invitationService;
+    private final VerificationCodeService verificationCodeService;
 
     @Override
     @Transactional
@@ -282,6 +284,61 @@ public class UserServiceImpl implements UserService {
                 .map(f -> getUserById(f.getFolloweeId()))
                 .toList();
         return PageResult.of(users, follows.getNumber(), follows.getSize(), follows.getTotalElements());
+    }
+
+    @Override
+    public void sendEmailVerificationCode(Long userId, String email) {
+        userRepository.findById(userId)
+                .orElseThrow(() -> new EntityNotFoundException("用户不存在"));
+
+        // 邮箱已被其他用户绑定
+        if (userRepository.findByEmail(email).isPresent()) {
+            throw new IllegalArgumentException("该邮箱已被其他账号绑定");
+        }
+
+        verificationCodeService.sendCode(email, VerificationCodeService.SCENE_EMAIL);
+    }
+
+    @Override
+    @CacheEvict(value = "user", key = "#userId")
+    @Transactional
+    public UserVO verifyEmail(Long userId, String email, String code) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new EntityNotFoundException("用户不存在"));
+
+        verificationCodeService.verifyCode(email, VerificationCodeService.SCENE_EMAIL, code);
+
+        // 校验通过后，再次确认邮箱未被他人绑定
+        userRepository.findByEmail(email).filter(other -> !other.getId().equals(userId))
+                .ifPresent(other -> {
+                    throw new IllegalArgumentException("该邮箱已被其他账号绑定");
+                });
+
+        user.setEmail(email);
+        user = userRepository.save(user);
+        log.info("User {} verified and bound email {}", userId, email);
+        return UserVO.from(user);
+    }
+
+    @Override
+    public void sendPasswordResetCode(String email) {
+        if (userRepository.findByEmail(email).isEmpty()) {
+            throw new IllegalArgumentException("该邮箱未注册");
+        }
+        verificationCodeService.sendCode(email, VerificationCodeService.SCENE_PASSWORD_RESET);
+    }
+
+    @Override
+    @Transactional
+    public void resetPassword(String email, String code, String newPassword) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("该邮箱未注册"));
+
+        verificationCodeService.verifyCode(email, VerificationCodeService.SCENE_PASSWORD_RESET, code);
+
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+        log.info("Password reset for user {}", user.getId());
     }
 
     private AuthResponse buildAuthResponse(User user) {

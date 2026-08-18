@@ -71,6 +71,21 @@ public class UserController {
         return ApiResponse.success(userService.setPinnedPost(userId, request.getPostId()));
     }
 
+    @PostMapping("/me/email/send-code")
+    @Operation(summary = "发送邮箱验证码（验证/绑定邮箱）")
+    public ApiResponse<Void> sendEmailCode(@AuthenticationPrincipal Long userId,
+                                           @Valid @RequestBody EmailRequest request) {
+        userService.sendEmailVerificationCode(userId, request.getEmail());
+        return ApiResponse.success();
+    }
+
+    @PostMapping("/me/email/verify")
+    @Operation(summary = "校验验证码并绑定邮箱")
+    public ApiResponse<UserVO> verifyEmail(@AuthenticationPrincipal Long userId,
+                                           @Valid @RequestBody VerifyEmailRequest request) {
+        return ApiResponse.success(userService.verifyEmail(userId, request.getEmail(), request.getCode()));
+    }
+
     @DeleteMapping("/me/pinned-post")
     @Operation(summary = "取消置顶帖")
     public ApiResponse<UserVO> clearPinnedPost(@AuthenticationPrincipal Long userId) {
