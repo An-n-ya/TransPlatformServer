@@ -15,7 +15,7 @@
     <artifactId>trans-platform</artifactId>
     <version>1.0.0-SNAPSHOT</version>
     <name>trans-platform</name>
-    <description>小红书风格 UGC 平台后端服务</description>
+    <description>TransPlatform后端服务</description>
 
     <properties>
         <java.version>17</java.version>

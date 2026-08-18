@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # ===================================================================
 # TransPlatform — 启动 / 重启 / 测试 一键脚本
 # ===================================================================
@@ -14,9 +14,17 @@ else
 fi
 PROFILE="${PROFILE:-dev}"
 PORT="${PORT:-8081}"
-JVM_ARGS="-XX:-UseContainerSupport -Dserver.port=${PORT}"
+JVM_ARGS="-Dserver.port=${PORT}"
 LOG_FILE="${APP_DIR}/logs/app.log"
 PID_FILE="/tmp/trans-platform.pid"
+
+# ---------- Maven 解析 ----------
+# 优先使用项目自带的 Maven Wrapper，否则回退到全局 mvn
+if [ -x "${APP_DIR}/mvnw" ]; then
+    MVN="${APP_DIR}/mvnw"
+else
+    MVN="mvn"
+fi
 
 # ---------- 颜色 ----------
 RED='\033[0;31m'
@@ -114,10 +122,12 @@ cmd_start() {
   check_infra
 
   mkdir -p "$(dirname "$LOG_FILE")"
+  # SQLite JDBC 不会自动创建父目录，需提前建好 data/ 目录
+  mkdir -p "${APP_DIR}/data"
   info "启动应用 (profile=${PROFILE}, port=${PORT})..."
 
   cd "$APP_DIR"
-  nohup mvn spring-boot:run \
+  nohup "${MVN}" spring-boot:run \
     -Dspring-boot.run.profiles="${PROFILE}" \
     -Dspring-boot.run.jvmArguments="${JVM_ARGS}" \
     > "${LOG_FILE}" 2>&1 &
@@ -202,7 +212,7 @@ cmd_test() {
 
   info "运行编译 + 测试..."
   cd "$APP_DIR"
-  mvn compile 2>&1 | tail -5
+  "${MVN}" compile 2>&1 | tail -5
   echo ""
   ok "编译通过"
 
