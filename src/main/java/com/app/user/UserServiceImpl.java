@@ -130,29 +130,29 @@ public class UserServiceImpl implements UserService {
     @Override
     @CacheEvict(value = "user", key = "#userId")
     @Transactional
-    public UserVO updateUser(Long userId, UserUpdateRequest request) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new EntityNotFoundException("用户不存在"));
-
-        Optional.ofNullable(request.getNickname()).ifPresent(user::setNickname);
-        Optional.ofNullable(request.getAvatar()).ifPresent(user::setAvatar);
-        Optional.ofNullable(request.getBio()).ifPresent(user::setBio);
-        Optional.ofNullable(request.getBioHeaderImg()).ifPresent(user::setBioHeaderImg);
-
-        user = userRepository.save(user);
-        return UserVO.from(user);
-    }
-
-    @Override
-    @CacheEvict(value = "user", key = "#userId")
-    @Transactional
-    public UserVO updateUser(Long userId, String nickname, String bio, String bioHeaderImg, MultipartFile avatarFile) {
+    public UserVO updateUser(Long userId, String nickname, String bio, MultipartFile bioHeaderImgFile, MultipartFile avatarFile) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new EntityNotFoundException("用户不存在"));
 
         Optional.ofNullable(nickname).ifPresent(user::setNickname);
         Optional.ofNullable(bio).ifPresent(user::setBio);
-        Optional.ofNullable(bioHeaderImg).ifPresent(user::setBioHeaderImg);
+
+        if (bioHeaderImgFile != null && !bioHeaderImgFile.isEmpty()) {
+            imageValidator.validate(bioHeaderImgFile);
+            try {
+                UploadRequest req = new UploadRequest(
+                        bioHeaderImgFile.getInputStream(),
+                        bioHeaderImgFile.getOriginalFilename(),
+                        bioHeaderImgFile.getContentType(),
+                        bioHeaderImgFile.getSize(),
+                        "bio-headers");
+                UploadResult result = storageService.upload(req);
+                user.setBioHeaderImg(result.url());
+                log.info("Bio header image updated for userId={}, url={}", userId, result.url());
+            } catch (IOException e) {
+                throw new RuntimeException("主页背景图上传失败", e);
+            }
+        }
 
         if (avatarFile != null && !avatarFile.isEmpty()) {
             imageValidator.validate(avatarFile);

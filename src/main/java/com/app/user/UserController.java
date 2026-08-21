@@ -46,22 +46,15 @@ public class UserController {
         return ApiResponse.success(userService.getCurrentUser(userId));
     }
 
-    @PutMapping(value = "/me", consumes = MediaType.APPLICATION_JSON_VALUE)
-    @Operation(summary = "更新当前用户信息（JSON 方式）")
-    public ApiResponse<UserVO> updateUser(@AuthenticationPrincipal Long userId,
-                                          @Valid @RequestBody UserUpdateRequest request) {
-        return ApiResponse.success(userService.updateUser(userId, request));
-    }
-
     @PutMapping(value = "/me", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @Operation(summary = "更新当前用户信息（multipart 方式，支持上传头像）")
+    @Operation(summary = "更新当前用户信息（multipart 方式，支持上传头像和主页背景图）")
     public ApiResponse<UserVO> updateUserMultipart(
             @AuthenticationPrincipal Long userId,
             @RequestParam(value = "nickname", required = false) String nickname,
             @RequestParam(value = "bio", required = false) String bio,
-            @RequestParam(value = "bioHeaderImg", required = false) String bioHeaderImg,
+            @RequestParam(value = "bioHeaderImg", required = false) MultipartFile bioHeaderImgFile,
             @RequestParam(value = "avatar", required = false) MultipartFile avatarFile) {
-        return ApiResponse.success(userService.updateUser(userId, nickname, bio, bioHeaderImg, avatarFile));
+        return ApiResponse.success(userService.updateUser(userId, nickname, bio, bioHeaderImgFile, avatarFile));
     }
 
     @PutMapping("/me/pinned-post")

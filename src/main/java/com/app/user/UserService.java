@@ -51,22 +51,18 @@ public interface UserService {
      */
     UserVO getUserById(Long userId);
 
-    /**
-     * 更新用户资料（JSON 方式）
-     */
-    UserVO updateUser(Long userId, UserUpdateRequest request);
 
     /**
-     * 更新用户资料（multipart 方式，支持上传头像）
+     * 更新用户资料（multipart 方式，支持上传头像和主页背景图）
      *
-     * @param userId       用户 ID
-     * @param nickname     昵称（可选）
-     * @param bio          个人简介（可选）
-     * @param bioHeaderImg 主页背景图 URL（可选）
-     * @param avatarFile   头像文件（可选，上传后自动替换 avatar URL）
+     * @param userId           用户 ID
+     * @param nickname         昵称（可选）
+     * @param bio              个人简介（可选）
+     * @param bioHeaderImgFile 主页背景图文件（可选，上传后自动替换 bioHeaderImg URL）
+     * @param avatarFile       头像文件（可选，上传后自动替换 avatar URL）
      * @return 更新后的用户视图
      */
-    UserVO updateUser(Long userId, String nickname, String bio, String bioHeaderImg, MultipartFile avatarFile);
+    UserVO updateUser(Long userId, String nickname, String bio, MultipartFile bioHeaderImgFile, MultipartFile avatarFile);
 
     /**
      * 设置置顶帖
