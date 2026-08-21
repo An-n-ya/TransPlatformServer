@@ -14,6 +14,8 @@ else
 fi
 PROFILE="${PROFILE:-dev}"
 PORT="${PORT:-8081}"
+# 固定使用 SDKMAN 管理的 Java 版本（可通过环境变量覆盖，如 JAVA_VERSION=21.0.12-tem）
+JAVA_VERSION="${JAVA_VERSION:-17.0.20-tem}"
 JVM_ARGS="-Dserver.port=${PORT}"
 LOG_FILE="${APP_DIR}/logs/app.log"
 PID_FILE="/tmp/trans-platform.pid"
@@ -38,8 +40,18 @@ ok()    { echo -e "${GREEN}[OK]${NC}    $1"; }
 warn()  { echo -e "${YELLOW}[WARN]${NC}  $1"; }
 err()   { echo -e "${RED}[ERROR]${NC} $1"; }
 
-# ---------- Helper: 初始化 SDKMAN ----------
-ensure_sdkman() {
+# ---------- Helper: 初始化 SDKMAN 并确保使用指定 Java 版本 ----------
+ensure_java() {
+  # 校验/切换指定版本的 JDK（17.0.20+ 修复了 cgroup v2 检测 NPE，勿用 17.0.0）
+  local java_home="${HOME}/.sdkman/candidates/java/${JAVA_VERSION}"
+  if [ ! -x "${java_home}/bin/java" ]; then
+    err "未找到 Java ${JAVA_VERSION}，请先安装: sdk install java ${JAVA_VERSION}"
+    exit 1
+  fi
+  export JAVA_HOME="${java_home}"
+  export PATH="${JAVA_HOME}/bin:${PATH}"
+  info "使用 Java: $("${JAVA_HOME}/bin/java" -version 2>&1 | head -1) (${JAVA_VERSION})"
+
   if ! command -v mvn &>/dev/null; then
     if [ -f "$HOME/.sdkman/bin/sdkman-init.sh" ]; then
       source "$HOME/.sdkman/bin/sdkman-init.sh"
@@ -90,6 +102,14 @@ check_infra() {
     ok=false
   fi
 
+  # 检测是否有 Docker 容器占用了应用端口（docker-proxy 以 root 运行，lsof 看不到）
+  local app_holder
+  app_holder=$(docker ps --filter "publish=${PORT}" --format '{{.Names}}' 2>/dev/null | head -1)
+  if [ -n "$app_holder" ]; then
+    warn "App 容器    ⚠️ [${app_holder}] 占用 ${PORT} 端口，本地启动前请先: docker stop ${app_holder}"
+    ok=false
+  fi
+
   # SQLite 无需额外基础设施，数据库文件位于 ${APP_DIR}/data/trans_platform.db
   if [ -f "${APP_DIR}/data/trans_platform.db" ]; then
     ok "SQLite       🟢 数据库就绪"
@@ -110,7 +130,7 @@ check_infra() {
 # 命令
 # ===================================================================
 cmd_start() {
-  ensure_sdkman
+  ensure_java
 
   # 检查是否已在运行
   if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
@@ -164,11 +184,22 @@ cmd_stop() {
     fi
   fi
 
-  # 确保端口已释放
+  # 确保端口已释放（lsof 无法看到 root 拥有的 docker-proxy，改用 ss + docker 检测）
   sleep 2
-  if lsof -i :"${PORT}" -P -n 2>/dev/null | grep -q LISTEN; then
-    warn "端口 ${PORT} 仍被占用，尝试强制释放..."
-    fuser -k "${PORT}/tcp" 2>/dev/null || true
+  if ss -tln "sport = :${PORT}" 2>/dev/null | grep -q LISTEN; then
+    local holder
+    holder=$(docker ps --filter "publish=${PORT}" --format '{{.Names}}' 2>/dev/null | head -1)
+    if [ -n "$holder" ]; then
+      warn "端口 ${PORT} 被 Docker 容器 [${holder}] 占用，执行 docker stop ${holder} ..."
+      if docker stop "${holder}" >/dev/null 2>&1; then
+        ok "已停止容器 ${holder}（可用 docker start ${holder} 恢复）"
+      else
+        warn "停止容器失败，请手动执行: docker stop ${holder}"
+      fi
+    else
+      warn "端口 ${PORT} 仍被占用，尝试强制释放..."
+      fuser -k "${PORT}/tcp" 2>/dev/null || true
+    fi
     sleep 1
   fi
 }
@@ -208,7 +239,7 @@ cmd_status() {
 }
 
 cmd_test() {
-  ensure_sdkman
+  ensure_java
 
   info "运行编译 + 测试..."
   cd "$APP_DIR"
