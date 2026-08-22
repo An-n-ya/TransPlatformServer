@@ -53,6 +53,15 @@ public interface UserService {
 
 
     /**
+     * 更新用户资料（JSON 方式）
+     *
+     * @param userId  用户 ID
+     * @param request 更新请求（昵称/头像/简介/背景图，均可选）
+     * @return 更新后的用户视图
+     */
+    UserVO updateUser(Long userId, UserUpdateRequest request);
+
+    /**
      * 更新用户资料（multipart 方式，支持上传头像和主页背景图）
      *
      * @param userId           用户 ID
