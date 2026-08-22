@@ -166,8 +166,28 @@ public class PostServiceImpl implements PostService {
             throw new SecurityException("无权删除他人的帖文");
         }
 
+        doDeletePost(post);
+    }
+
+    @Override
+    @CacheEvict(value = "post", key = "#postId")
+    @Transactional
+    public void deletePostByAdmin(Long postId) {
+        Post post = postRepository.findById(postId)
+                .orElseThrow(() -> new EntityNotFoundException("帖文不存在"));
+
+        doDeletePost(post);
+        log.info("Post deleted by admin: postId={}", postId);
+    }
+
+    /** 帖文逻辑删除（置 status=0，并递减关联话题计数） */
+    private void doDeletePost(Post post) {
+        if (post.getStatus() == 0) {
+            throw new EntityNotFoundException("帖文已被删除");
+        }
+
         // 删除前记录关联话题，用于递减 Redis 计数
-        List<Long> topicIds = postTopicRepository.findByPostId(postId).stream()
+        List<Long> topicIds = postTopicRepository.findByPostId(post.getId()).stream()
                 .map(PostTopic::getTopicId)
                 .toList();
 
@@ -179,7 +199,17 @@ public class PostServiceImpl implements PostService {
             topicService.decrementPostCount(topicId);
         }
 
-        log.info("Post deleted: postId={}, userId={}", postId, currentUserId);
+        log.info("Post deleted: postId={}", post.getId());
+    }
+
+    @Override
+    public PageResult<PostVO> adminListPosts(Long userId, String content, Integer status, Pageable pageable) {
+        String keyword = (content == null || content.isBlank()) ? null : content.trim();
+        Page<Post> page = postRepository.adminSearch(userId, keyword, status, pageable);
+        List<PostVO> vos = page.getContent().stream()
+                .map(post -> buildPostVO(post, null))
+                .toList();
+        return PageResult.of(vos, page.getNumber(), page.getSize(), page.getTotalElements());
     }
 
     @Override
@@ -277,7 +307,7 @@ public class PostServiceImpl implements PostService {
             return;
         }
         for (Long topicId : topicIds) {
-            if (!topicRepository.existsById(topicId)) {
+            if (!topicRepository.existsByIdAndStatus(topicId, 1)) {
                 throw new EntityNotFoundException("话题不存在: id=" + topicId);
             }
             postTopicRepository.save(new PostTopic(postId, topicId));
@@ -295,7 +325,8 @@ public class PostServiceImpl implements PostService {
         return links.stream()
                 .map(link -> {
                     Topic topic = topicRepository.findById(link.getTopicId()).orElse(null);
-                    if (topic == null) return null;
+                    // 过滤已逻辑删除的话题
+                    if (topic == null || topic.getStatus() == 0) return null;
                     return TopicVO.from(topic, postTopicRepository.countByTopicId(topic.getId()));
                 })
                 .filter(java.util.Objects::nonNull)

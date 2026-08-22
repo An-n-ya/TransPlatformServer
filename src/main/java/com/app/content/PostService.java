@@ -42,6 +42,23 @@ public interface PostService {
     void deletePost(Long postId, Long currentUserId);
 
     /**
+     * 管理员删除帖文（逻辑删除，可删除任意用户的帖文）
+     *
+     * @param postId 帖文 ID
+     */
+    void deletePostByAdmin(Long postId);
+
+    /**
+     * 管理员查询帖文列表（可按用户 / 内容 / 状态过滤）
+     *
+     * @param userId  用户 ID（可选，为空则全部用户）
+     * @param content 内容模糊匹配（可选）
+     * @param status  状态（可选，1=正常 0=已删除，为空则全部）
+     * @param pageable 分页参数
+     */
+    PageResult<PostVO> adminListPosts(Long userId, String content, Integer status, Pageable pageable);
+
+    /**
      * 统一查询帖文（JSON 参数：postId / userId / topicId / content）
      *
      * @param query         查询条件（postId / userId / topicId / content），

@@ -93,6 +93,26 @@ public class CommentServiceImpl implements CommentService {
             throw new SecurityException("无权删除他人的评论");
         }
 
+        doDeleteComment(comment);
+        log.info("Comment deleted: id={}, userId={}", commentId, userId);
+    }
+
+    @Override
+    @Transactional
+    public void deleteCommentByAdmin(Long commentId) {
+        Comment comment = commentRepository.findById(commentId)
+                .orElseThrow(() -> new EntityNotFoundException("评论不存在"));
+
+        doDeleteComment(comment);
+        log.info("Comment deleted by admin: id={}", commentId);
+    }
+
+    /** 评论逻辑删除（置 status=0，并同步递减帖文评论计数） */
+    private void doDeleteComment(Comment comment) {
+        if (comment.getStatus() == 0) {
+            throw new EntityNotFoundException("评论已被删除");
+        }
+
         comment.setStatus(0);
         commentRepository.save(comment);
 
@@ -101,8 +121,6 @@ public class CommentServiceImpl implements CommentService {
             post.setCommentsCount(post.getCommentsCount() - 1);
             postRepository.save(post);
         }
-
-        log.info("Comment deleted: id={}, userId={}", commentId, userId);
     }
 
     @Override

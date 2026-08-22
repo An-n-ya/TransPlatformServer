@@ -37,6 +37,8 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class UserServiceImpl implements UserService {
 
+    private static final String ROLE_ADMIN = "admin";
+
     private final UserRepository userRepository;
     private final FollowRepository followRepository;
     private final PasswordEncoder passwordEncoder;
@@ -86,6 +88,17 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    public AuthResponse adminLogin(LoginRequest request) {
+        AuthResponse response = login(request);
+        if (!ROLE_ADMIN.equals(response.getUser().getRole())) {
+            throw new SecurityException("非管理员账号无法登录管理后台");
+        }
+        log.info("Admin logged in: userId={}, username={}",
+                response.getUser().getId(), response.getUser().getUsername());
+        return response;
+    }
+
+    @Override
     public AuthResponse refreshToken(String refreshToken) {
         if (!jwtUtil.validateToken(refreshToken) || !jwtUtil.isRefreshToken(refreshToken)) {
             throw new IllegalArgumentException("无效的 Refresh Token");
@@ -96,6 +109,16 @@ public class UserServiceImpl implements UserService {
                 .orElseThrow(() -> new EntityNotFoundException("用户不存在"));
 
         return buildAuthResponse(user);
+    }
+
+    @Override
+    public AuthResponse adminRefreshToken(String refreshToken) {
+        AuthResponse response = refreshToken(refreshToken);
+        if (!ROLE_ADMIN.equals(response.getUser().getRole())) {
+            throw new SecurityException("非管理员账号无法访问管理后台");
+        }
+        log.info("Admin refreshed token: userId={}", response.getUser().getId());
+        return response;
     }
 
     @Override

@@ -42,4 +42,16 @@ public interface PostRepository extends JpaRepository<Post, Long> {
     @Query("SELECT p FROM Post p WHERE p.status = 1 " +
             "AND p.id IN (SELECT pt.postId FROM PostTopic pt WHERE pt.topicId = :topicId)")
     Page<Post> findByTopicId(@Param("topicId") Long topicId, Pageable pageable);
+
+    /**
+     * 管理员查询帖文列表（userId / content / status 均可为空）
+     */
+    @Query("SELECT p FROM Post p WHERE " +
+            "(:status IS NULL OR p.status = :status) " +
+            "AND (:userId IS NULL OR p.userId = :userId) " +
+            "AND (:content IS NULL OR p.content LIKE '%' || :content || '%')")
+    Page<Post> adminSearch(@Param("userId") Long userId,
+                           @Param("content") String content,
+                           @Param("status") Integer status,
+                           Pageable pageable);
 }

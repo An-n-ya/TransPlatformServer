@@ -45,6 +45,9 @@ public class TopicServiceImpl implements TopicService {
     public TopicVO updateTopic(Long topicId, TopicRequest request) {
         Topic topic = topicRepository.findById(topicId)
                 .orElseThrow(() -> new EntityNotFoundException("话题不存在"));
+        if (topic.getStatus() == 0) {
+            throw new EntityNotFoundException("话题已被删除");
+        }
 
         if (!topic.getName().equals(request.getName())
                 && topicRepository.existsByName(request.getName())) {
@@ -64,24 +67,33 @@ public class TopicServiceImpl implements TopicService {
     public void deleteTopic(Long topicId) {
         Topic topic = topicRepository.findById(topicId)
                 .orElseThrow(() -> new EntityNotFoundException("话题不存在"));
+        if (topic.getStatus() == 0) {
+            throw new EntityNotFoundException("话题已被删除");
+        }
+
+        // 逻辑删除：仅置 status=0，保留数据用于审计/恢复
+        topic.setStatus(0);
+        topicRepository.save(topic);
 
         // 清理帖文关联与 Redis 计数
         postTopicRepository.deleteByTopicId(topicId);
         stringRedisTemplate.opsForZSet().remove(HOT_TOPIC_KEY, topicId.toString());
-        topicRepository.delete(topic);
-        log.info("Topic deleted: id={}, name={}", topicId, topic.getName());
+        log.info("Topic deleted (logical): id={}, name={}", topicId, topic.getName());
     }
 
     @Override
     public TopicVO getTopic(Long topicId) {
         Topic topic = topicRepository.findById(topicId)
                 .orElseThrow(() -> new EntityNotFoundException("话题不存在"));
+        if (topic.getStatus() == 0) {
+            throw new EntityNotFoundException("话题已被删除");
+        }
         return TopicVO.from(topic, getPostCount(topicId));
     }
 
     @Override
     public PageResult<TopicVO> listTopics(Pageable pageable) {
-        Page<Topic> page = topicRepository.findAll(pageable);
+        Page<Topic> page = topicRepository.findByStatus(1, pageable);
         List<TopicVO> vos = page.getContent().stream()
                 .map(t -> TopicVO.from(t, getPostCount(t.getId())))
                 .toList();
@@ -90,7 +102,7 @@ public class TopicServiceImpl implements TopicService {
 
     @Override
     public PageResult<TopicVO> searchTopics(String keyword, Pageable pageable) {
-        Page<Topic> page = topicRepository.findByNameContainingIgnoreCase(keyword, pageable);
+        Page<Topic> page = topicRepository.findByNameContainingIgnoreCaseAndStatus(keyword, 1, pageable);
         List<TopicVO> vos = page.getContent().stream()
                 .map(t -> TopicVO.from(t, getPostCount(t.getId())))
                 .toList();
@@ -116,7 +128,10 @@ public class TopicServiceImpl implements TopicService {
         return tuples.stream()
                 .map(t -> {
                     Long topicId = Long.parseLong(t.getValue());
-                    return topicRepository.findById(topicId).orElse(null);
+                    Topic topic = topicRepository.findById(topicId).orElse(null);
+                    // 过滤已逻辑删除的话题
+                    if (topic == null || topic.getStatus() == 0) return null;
+                    return topic;
                 })
                 .filter(Objects::nonNull)
                 .map(t -> TopicVO.from(t, getPostCount(t.getId())))

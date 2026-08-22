@@ -24,11 +24,25 @@ public interface UserService {
     AuthResponse login(LoginRequest request);
 
     /**
+     * 管理员登录（校验角色必须为 admin）
+     * @param request 登录请求
+     * @return 认证响应
+     */
+    AuthResponse adminLogin(LoginRequest request);
+
+    /**
      * 刷新 Token
      * @param refreshToken 刷新令牌
      * @return 新的认证响应
      */
     AuthResponse refreshToken(String refreshToken);
+
+    /**
+     * 管理员刷新 Token（校验角色必须为 admin）
+     * @param refreshToken 刷新令牌
+     * @return 新的认证响应
+     */
+    AuthResponse adminRefreshToken(String refreshToken);
 
     /**
      * 校验用户名是否已被占用

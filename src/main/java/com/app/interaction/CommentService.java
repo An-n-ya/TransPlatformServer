@@ -24,6 +24,12 @@ public interface CommentService {
     void deleteComment(Long commentId, Long userId);
 
     /**
+     * 管理员删除评论（逻辑删除，可删除任意用户的评论）
+     * @param commentId 评论 ID
+     */
+    void deleteCommentByAdmin(Long commentId);
+
+    /**
      * 获取帖文的评论列表（分页，顶级评论）
      */
     PageResult<CommentVO> getPostComments(Long postId, Long currentUserId, Pageable pageable);

@@ -1,7 +1,10 @@
-package com.app.topic;
+package com.app.admin;
 
 import com.app.common.ApiResponse;
 import com.app.common.PageResult;
+import com.app.topic.TopicRequest;
+import com.app.topic.TopicService;
+import com.app.topic.TopicVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -14,48 +17,52 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 /**
- * 话题控制器 — 查询/创建/更新（删除仅管理员可操作，见 AdminTopicController）
+ * 管理后台话题控制器 — 话题完整 CRUD（删除使用逻辑删除）
  */
 @RestController
-@RequestMapping("/api/v1/topics")
+@RequestMapping("/admin/v1/topics")
 @RequiredArgsConstructor
-@Tag(name = "话题", description = "话题的创建、查询、更新（删除仅在管理后台）")
-public class TopicController {
+@Tag(name = "管理后台-话题", description = "管理员话题完整 CRUD（删除为逻辑删除）")
+public class AdminTopicController {
 
     private final TopicService topicService;
 
-    @PostMapping
-    @Operation(summary = "创建话题")
-    public ApiResponse<TopicVO> createTopic(@Valid @RequestBody TopicRequest request) {
-        return ApiResponse.success(topicService.createTopic(request));
-    }
-
     @GetMapping
-    @Operation(summary = "话题列表（分页）")
+    @Operation(summary = "管理员话题列表（分页）")
     public ApiResponse<PageResult<TopicVO>> listTopics(
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return ApiResponse.success(topicService.listTopics(pageable));
     }
 
+    @PostMapping
+    @Operation(summary = "管理员创建话题")
+    public ApiResponse<TopicVO> createTopic(@Valid @RequestBody TopicRequest request) {
+        return ApiResponse.success(topicService.createTopic(request));
+    }
+
     @GetMapping("/hot")
-    @Operation(summary = "热门话题（按参与人数最多的前 10 个）")
-    public ApiResponse<List<TopicVO>> getHotTopics(
-            @RequestParam(defaultValue = "10") int limit) {
+    @Operation(summary = "管理员热门话题（按帖数最多的前 N 个）")
+    public ApiResponse<List<TopicVO>> getHostTopics(@RequestParam(defaultValue = "10") int limit) {
         return ApiResponse.success(topicService.getHotTopics(Math.min(limit, 50)));
     }
 
     @GetMapping("/{topicId}")
-    @Operation(summary = "获取话题详情")
+    @Operation(summary = "管理员获取话题详情")
     public ApiResponse<TopicVO> getTopic(@PathVariable Long topicId) {
         return ApiResponse.success(topicService.getTopic(topicId));
     }
 
     @PutMapping("/{topicId}")
-    @Operation(summary = "更新话题")
+    @Operation(summary = "管理员更新话题")
     public ApiResponse<TopicVO> updateTopic(@PathVariable Long topicId,
                                             @Valid @RequestBody TopicRequest request) {
         return ApiResponse.success(topicService.updateTopic(topicId, request));
     }
 
-    // 注意：普通用户不提供删除话题接口，删除话题仅限管理后台 /admin/v1/topics/{topicId}
+    @DeleteMapping("/{topicId}")
+    @Operation(summary = "管理员删除话题（逻辑删除）")
+    public ApiResponse<Void> deleteTopic(@PathVariable Long topicId) {
+        topicService.deleteTopic(topicId);
+        return ApiResponse.success();
+    }
 }

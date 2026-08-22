@@ -27,6 +27,10 @@ public class Topic {
     @Column(length = 200)
     private String description;
 
+    /** 状态：1=正常 0=已删除（逻辑删除） */
+    @Column(nullable = false)
+    private Integer status = 1;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -47,5 +51,6 @@ public class Topic {
     public Topic(String name, String description) {
         this.name = name;
         this.description = description;
+        this.status = 1;
     }
 }

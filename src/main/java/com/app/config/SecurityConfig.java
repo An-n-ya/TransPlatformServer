@@ -1,6 +1,8 @@
 package com.app.config;
 
 import com.app.common.JwtUtil;
+import com.app.user.User;
+import com.app.user.UserRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -16,7 +18,6 @@ import org.springframework.security.config.annotation.authentication.configurati
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
@@ -28,7 +29,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 /**
- * Spring Security 配置 — 无状态 JWT 认证
+ * Spring Security 配置 — 无状态 JWT 认证 + 管理后台角色鉴权
  */
 @Slf4j
 @Configuration
@@ -37,6 +38,7 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtUtil jwtUtil;
+    private final UserRepository userRepository;
 
     /** 白名单 URL — 无需认证即可访问 */
     private static final List<String> WHITELIST = List.of(
@@ -56,6 +58,9 @@ public class SecurityConfig {
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(WHITELIST.toArray(new String[0])).permitAll()
+                // 管理后台：登录/刷新放行，其余仅管理员（ROLE_ADMIN）可访问
+                .requestMatchers("/admin/v1/auth/**").permitAll()
+                .requestMatchers("/admin/v1/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/v1/posts/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/topics/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/search").permitAll()
@@ -64,12 +69,20 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/v1/users/**").permitAll()
                 .anyRequest().authenticated()
             )
-            .exceptionHandling(e -> e.authenticationEntryPoint((request, response, authException) -> {
-                response.setStatus(401);
-                response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-                response.setCharacterEncoding(StandardCharsets.UTF_8.name());
-                response.getWriter().write("{\"code\":401,\"message\":\"未登录或登录已过期\",\"data\":null}");
-            }))
+            .exceptionHandling(e -> e
+                .authenticationEntryPoint((request, response, authException) -> {
+                    response.setStatus(401);
+                    response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                    response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+                    response.getWriter().write("{\"code\":401,\"message\":\"未登录或登录已过期\",\"data\":null}");
+                })
+                // 已登录但权限不足时直接返回 403（避免默认 sendError 触发 /error 二次分发）
+                .accessDeniedHandler((request, response, accessDeniedException) -> {
+                    response.setStatus(403);
+                    response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                    response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+                    response.getWriter().write("{\"code\":403,\"message\":\"无权访问此资源\",\"data\":null}");
+                }))
             .addFilterBefore(jwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
@@ -85,7 +98,7 @@ public class SecurityConfig {
         return config.getAuthenticationManager();
     }
 
-    /** JWT 认证过滤器 — 从请求头提取并验证 Token */
+    /** JWT 认证过滤器 — 从请求头提取并验证 Token，管理后台路径加载真实角色 */
     @Bean
     public OncePerRequestFilter jwtAuthenticationFilter() {
         return new OncePerRequestFilter() {
@@ -99,7 +112,14 @@ public class SecurityConfig {
                     try {
                         if (jwtUtil.validateToken(token) && !jwtUtil.isRefreshToken(token)) {
                             Long userId = jwtUtil.getUserIdFromToken(token);
-                            JwtAuthentication authentication = new JwtAuthentication(userId);
+                            // 仅管理后台路径需要从数据库加载真实角色（其余默认普通用户）
+                            String role = "user";
+                            if (request.getRequestURI().startsWith("/admin/")) {
+                                role = userRepository.findById(userId)
+                                        .map(User::getRole)
+                                        .orElse("user");
+                            }
+                            JwtAuthentication authentication = new JwtAuthentication(userId, role);
                             org.springframework.security.core.context.SecurityContextHolder
                                     .getContext().setAuthentication(authentication);
                         }
