@@ -4,3 +4,5 @@ data/
 .idea/
 target/
 .trae/
+# 环境变量密钥（docker-compose 插值用，勿提交）
+.env
