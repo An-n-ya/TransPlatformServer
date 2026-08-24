@@ -18,7 +18,7 @@ public interface FeedService {
     PageResult<PostVO> getFeed(Long userId, int page, int size);
 
     /**
-     * 用户发帖后，推送到所有粉丝的 Feed 列表
+     * 用户发帖后，推送到所有粉丝以及作者本人的 Feed 列表
      * @param postId 帖文 ID
      * @param userId 发帖用户 ID
      */

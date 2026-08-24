@@ -13,6 +13,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -67,19 +68,19 @@ public class FeedServiceImpl implements FeedService {
     public void pushPostToFollowers(Long postId, Long userId) {
         List<Long> followerIds = followRepository.findFollowerIdsByFolloweeId(userId);
 
-        if (followerIds.isEmpty()) {
-            log.debug("No followers to push post {} to", postId);
-            return;
-        }
+        // 推送给所有粉丝 + 作者本人，确保作者自己的新帖也出现在自己的 feed
+        // 用 LinkedHashSet 去重（防止作者同时在粉丝列表中），并保持插入顺序
+        Set<Long> targetIds = new LinkedHashSet<>(followerIds);
+        targetIds.add(userId);
 
         String postIdStr = postId.toString();
-        for (Long followerId : followerIds) {
-            String feedKey = FEED_KEY_PREFIX + followerId;
+        for (Long targetId : targetIds) {
+            String feedKey = FEED_KEY_PREFIX + targetId;
             stringRedisTemplate.opsForList().leftPush(feedKey, postIdStr);
             stringRedisTemplate.opsForList().trim(feedKey, 0, maxFeedSize - 1);
         }
 
-        log.info("Pushed post {} to {} followers", postId, followerIds.size());
+        log.info("Pushed post {} to {} users ({} followers + author)", postId, targetIds.size(), followerIds.size());
     }
 
     @Override
