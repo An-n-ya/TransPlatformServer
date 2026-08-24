@@ -1,6 +1,6 @@
 package com.app.feed;
 
-import com.app.common.PageResult;
+import com.app.common.CursorPage;
 import com.app.content.Post;
 import com.app.content.PostRepository;
 import com.app.content.PostService;
@@ -10,9 +10,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.redis.core.ListOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -36,32 +38,82 @@ public class FeedServiceImpl implements FeedService {
 
     private static final String FEED_KEY_PREFIX = "feed:";
 
+    /** 每次扫描的批次大小：跳过已删除/过滤掉的帖文，尽量填满一页 */
+    private static final int FEED_FETCH_BATCH = 50;
+
     @Value("${feed.max-size:500}")
     private int maxFeedSize;
 
     @Override
-    public PageResult<PostVO> getFeed(Long userId, int page, int size) {
+    public CursorPage<PostVO> getFeed(Long userId, Long cursor, int size) {
         String feedKey = FEED_KEY_PREFIX + userId;
+        ListOperations<String, String> listOps = stringRedisTemplate.opsForList();
 
-        int start = page * size;
-        int end = start + size - 1;
+        List<PostVO> result = new ArrayList<>();
+        // 锚点 = 当前扫描到的最后一条原始 id；null 表示从列表头部（最新）开始
+        String anchorId = (cursor != null) ? cursor.toString() : null;
+        String lastVisibleId = null;
+        boolean exhausted = false;
 
-        Long total = stringRedisTemplate.opsForList().size(feedKey);
-        if (total == null || total == 0) {
-            return PageResult.empty();
+        // 每批至少取 size 条原始 id，保证一页尽量填满（即使中间混有已删除帖文）
+        int fetchBatch = Math.max(size, FEED_FETCH_BATCH);
+
+        while (result.size() < size && !exhausted) {
+            List<String> rawIds = fetchIdsAfter(feedKey, listOps, anchorId, fetchBatch);
+            if (rawIds == null || rawIds.isEmpty()) {
+                // 游标帖文已被移除（LTRIM 截断/删除）或已到列表末尾
+                exhausted = true;
+                break;
+            }
+            // 锚点推进为本次取到的最后一条原始 id，保证下一批继续向后、不重复
+            anchorId = rawIds.get(rawIds.size() - 1);
+
+            // 按原始顺序批量查库（内部会过滤 status != 1 的已删除帖文）
+            List<Long> postIds = rawIds.stream().map(Long::valueOf).toList();
+            List<PostVO> visible = postService.getPostsByIds(postIds, userId);
+            if (!visible.isEmpty()) {
+                // 只取本页还需要的条数，避免超出一页
+                List<PostVO> take = visible.size() <= size - result.size()
+                        ? visible
+                        : visible.subList(0, size - result.size());
+                result.addAll(take);
+                lastVisibleId = take.get(take.size() - 1).getId().toString();
+            }
+
+            // 返回数量不足一批说明已到列表末尾
+            if (rawIds.size() < fetchBatch) {
+                exhausted = true;
+            }
         }
 
-        List<String> postIdStrs = stringRedisTemplate.opsForList().range(feedKey, start, end);
-        if (postIdStrs == null || postIdStrs.isEmpty()) {
-            return PageResult.empty();
+        if (result.isEmpty()) {
+            return CursorPage.empty();
         }
 
-        List<Long> postIds = postIdStrs.stream()
-                .map(Long::valueOf)
-                .toList();
+        // hasMore = 最后一条可见帖文之后是否还有原始项。
+        // 不能用“取满一批/取满 size”判断：当列表不足一批（如 size 小、列表短）时，
+        // 本页可能只取了 size 条但后面仍有更多。
+        Long lastPos = listOps.indexOf(feedKey, lastVisibleId);
+        Long listSize = listOps.size(feedKey);
+        boolean hasMore = lastPos != null && listSize != null && lastPos < listSize - 1;
 
-        List<PostVO> posts = postService.getPostsByIds(postIds, userId);
-        return PageResult.of(posts, page, size, total);
+        return new CursorPage<>(result, Long.valueOf(lastVisibleId), hasMore);
+    }
+
+    /**
+     * 取锚点之后的一批 id；anchorId 为 null 时从列表头部取。
+     * 游标帖文不存在时返回 null。
+     */
+    private List<String> fetchIdsAfter(String feedKey, ListOperations<String, String> listOps,
+                                       String anchorId, int batch) {
+        if (anchorId == null) {
+            return listOps.range(feedKey, 0, batch - 1);
+        }
+        Long pos = listOps.indexOf(feedKey, anchorId);
+        if (pos == null) {
+            return null;
+        }
+        return listOps.range(feedKey, pos + 1, pos + batch);
     }
 
     @Override

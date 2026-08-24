@@ -1,6 +1,6 @@
 package com.app.feed;
 
-import com.app.common.PageResult;
+import com.app.common.CursorPage;
 import com.app.content.PostVO;
 
 /**
@@ -9,13 +9,14 @@ import com.app.content.PostVO;
 public interface FeedService {
 
     /**
-     * 获取首页 Feed 流（基于关注关系的时间线）
-     * @param userId   当前用户 ID
-     * @param page     页码
-     * @param size     每页大小
-     * @return 帖文列表
+     * 获取首页 Feed 流（基于关注关系的时间线，游标分页）
+     *
+     * @param userId 当前用户 ID
+     * @param cursor 游标 = 上一页最后一条帖文 ID；null 表示第一页（最新）
+     * @param size   每页大小
+     * @return 帖文列表 + 下一页游标
      */
-    PageResult<PostVO> getFeed(Long userId, int page, int size);
+    CursorPage<PostVO> getFeed(Long userId, Long cursor, int size);
 
     /**
      * 用户发帖后，推送到所有粉丝以及作者本人的 Feed 列表
