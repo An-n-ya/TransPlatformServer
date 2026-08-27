@@ -19,17 +19,18 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/v1/feed")
 @RequiredArgsConstructor
 @Validated
-@Tag(name = "Feed 流", description = "首页 Feed 流（基于关注关系的时间线，游标分页）")
+@Tag(name = "Feed 流", description = "首页 Feed 流：plaza 广场(默认)/following 关注/nearby 附近，游标分页")
 public class FeedController {
 
     private final FeedService feedService;
 
     @GetMapping
     @Operation(summary = "获取首页 Feed 流（游标分页）",
-            description = "第一页不传 cursor；之后将上一页返回的 nextCursor 原样传入即可")
+            description = "type：plaza 广场(默认，所有用户最新帖文) / following 关注(关注用户的最新帖文) / nearby 附近(按用户位置过滤)。第一页不传 cursor；之后将上一页返回的 nextCursor 原样传入即可")
     public ApiResponse<CursorPage<PostVO>> getFeed(@AuthenticationPrincipal Long userId,
+                                                   @RequestParam(defaultValue = "plaza") String type,
                                                    @RequestParam(required = false) Long cursor,
                                                    @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
-        return ApiResponse.success(feedService.getFeed(userId, cursor, size));
+        return ApiResponse.success(feedService.getFeed(userId, FeedType.from(type), cursor, size));
     }
 }

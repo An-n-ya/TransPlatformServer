@@ -19,6 +19,25 @@ public interface PostRepository extends JpaRepository<Post, Long> {
     List<Post> findByIdInAndStatus(List<Long> ids, Integer status);
 
     /**
+     * 广场时间流：所有用户的正常帖文，按 id 倒序（最新在前）。
+     * cursor 为 null 时从最新开始；否则取 id 小于 cursor 的帖子。
+     */
+    @Query("SELECT p FROM Post p WHERE p.status = 1 " +
+            "AND (:cursor IS NULL OR p.id < :cursor) ORDER BY p.id DESC")
+    List<Post> findPlazaFeed(@Param("cursor") Long cursor, Pageable pageable);
+
+    /**
+     * 附近时间流：位置等于给定 location 的用户的正常帖文，按 id 倒序（最新在前）。
+     * cursor 为 null 时从最新开始；否则取 id 小于 cursor 的帖子。
+     */
+    @Query("SELECT p FROM Post p WHERE p.status = 1 " +
+            "AND p.userId IN (SELECT u.id FROM User u WHERE u.location = :location) " +
+            "AND (:cursor IS NULL OR p.id < :cursor) ORDER BY p.id DESC")
+    List<Post> findNearbyFeed(@Param("location") String location,
+                              @Param("cursor") Long cursor,
+                              Pageable pageable);
+
+    /**
      * 按内容模糊匹配某用户的帖文
      */
     @Query("SELECT p FROM Post p WHERE p.userId = :userId AND p.status = 1 " +

@@ -59,9 +59,10 @@ public class UserController {
             @AuthenticationPrincipal Long userId,
             @RequestParam(value = "nickname", required = false) String nickname,
             @RequestParam(value = "bio", required = false) String bio,
+            @RequestParam(value = "location", required = false) String location,
             @RequestParam(value = "bioHeaderImg", required = false) MultipartFile bioHeaderImgFile,
             @RequestParam(value = "avatar", required = false) MultipartFile avatarFile) {
-        return ApiResponse.success(userService.updateUser(userId, nickname, bio, bioHeaderImgFile, avatarFile));
+        return ApiResponse.success(userService.updateUser(userId, nickname, bio, location, bioHeaderImgFile, avatarFile));
     }
 
     @PutMapping("/me/pinned-post")

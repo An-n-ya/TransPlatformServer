@@ -23,6 +23,7 @@ public class UserVO {
     private String nickname;
     private String avatar;
     private String bio;
+    private String location;
     private String bioHeaderImg;
     private String email;
     private Long pinnedPostId;
@@ -39,6 +40,7 @@ public class UserVO {
                 .nickname(user.getNickname())
                 .avatar(user.getAvatar())
                 .bio(user.getBio())
+                .location(user.getLocation())
                 .bioHeaderImg(user.getBioHeaderImg())
                 .email(user.getEmail())
                 .pinnedPostId(user.getPinnedPostId())

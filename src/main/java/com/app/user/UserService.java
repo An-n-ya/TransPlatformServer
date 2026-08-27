@@ -81,11 +81,12 @@ public interface UserService {
      * @param userId           用户 ID
      * @param nickname         昵称（可选）
      * @param bio              个人简介（可选）
+     * @param location         用户位置/城市（可选）
      * @param bioHeaderImgFile 主页背景图文件（可选，上传后自动替换 bioHeaderImg URL）
      * @param avatarFile       头像文件（可选，上传后自动替换 avatar URL）
      * @return 更新后的用户视图
      */
-    UserVO updateUser(Long userId, String nickname, String bio, MultipartFile bioHeaderImgFile, MultipartFile avatarFile);
+    UserVO updateUser(Long userId, String nickname, String bio, String location, MultipartFile bioHeaderImgFile, MultipartFile avatarFile);
 
     /**
      * 设置置顶帖

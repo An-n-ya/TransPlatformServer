@@ -74,6 +74,7 @@ services:
       # 逆地理编码 API Key（默认 BigDataCloud，失败回退百度；从 scripts/.env 或宿主环境变量读取）
       BAIDU_API_KEY: ${BAIDU_API_KEY:-}
       BIG_DATA_CLOUD_KEY_API: ${BIG_DATA_CLOUD_KEY_API:-}
+      RESEND_KEY_API: ${RESEND_API_KEY:-}
     volumes:
       # 持久化 SQLite 数据库 —— 默认宿主目录 /var/opt/trans/data
       - ${DATA_DIR:-/var/opt/trans}/data:/app/data

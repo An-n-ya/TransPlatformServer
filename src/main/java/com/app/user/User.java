@@ -31,6 +31,10 @@ public class User extends BaseEntity {
     @Column(length = 200)
     private String bio;
 
+    /** 用户位置（城市，用于“附近”时间流过滤） */
+    @Column(length = 200)
+    private String location;
+
     @Column(name = "bio_header_img", length = 500)
     private String bioHeaderImg;
 

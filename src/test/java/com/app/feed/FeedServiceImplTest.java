@@ -1,17 +1,23 @@
 package com.app.feed;
 
 import com.app.common.CursorPage;
+import com.app.content.Post;
+import com.app.content.PostRepository;
 import com.app.content.PostService;
 import com.app.content.PostVO;
 import com.app.user.FollowRepository;
+import com.app.user.User;
+import com.app.user.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.redis.core.ListOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -20,6 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -27,7 +34,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * Feed 流测试：发帖推送（含作者本人）+ 游标分页读取。
+ * Feed 流测试：发帖推送（含作者本人）+ 游标分页读取 + 广场/附近 SQL 时间流。
  */
 class FeedServiceImplTest {
 
@@ -35,6 +42,8 @@ class FeedServiceImplTest {
     private ListOperations<String, String> listOps;
     private FollowRepository followRepository;
     private PostService postService;
+    private PostRepository postRepository;
+    private UserRepository userRepository;
     private FeedServiceImpl feedService;
 
     @BeforeEach
@@ -43,9 +52,11 @@ class FeedServiceImplTest {
         listOps = mock(ListOperations.class);
         followRepository = mock(FollowRepository.class);
         postService = mock(PostService.class);
+        postRepository = mock(PostRepository.class);
+        userRepository = mock(UserRepository.class);
         when(redis.opsForList()).thenReturn(listOps);
 
-        feedService = new FeedServiceImpl(redis, followRepository, postService, null);
+        feedService = new FeedServiceImpl(redis, followRepository, postService, postRepository, userRepository);
         // maxFeedSize 由 @Value 注入，测试中通过反射设置
         Field maxFeedSize = FeedServiceImpl.class.getDeclaredField("maxFeedSize");
         maxFeedSize.setAccessible(true);
@@ -88,7 +99,7 @@ class FeedServiceImplTest {
         verify(listOps, times(2)).trim(anyString(), eq(0L), eq(499L));
     }
 
-    // ==================== 游标分页读取 ====================
+    // ==================== 关注（Push）游标分页读取 ====================
 
     /** 生成 from..to 的 id 字符串列表（从大到小，最新在前） */
     private List<String> rangeIds(int from, int to) {
@@ -113,7 +124,7 @@ class FeedServiceImplTest {
         when(listOps.indexOf("feed:1", "81")).thenReturn(19L);
         when(listOps.size("feed:1")).thenReturn(50L);
 
-        CursorPage<PostVO> page = feedService.getFeed(1L, null, 20);
+        CursorPage<PostVO> page = feedService.getFeed(1L, FeedType.FOLLOWING, null, 20);
 
         assertEquals(20, page.getContent().size());
         assertEquals(100L, page.getContent().get(0).getId());   // 最新在前
@@ -133,7 +144,7 @@ class FeedServiceImplTest {
         when(listOps.indexOf("feed:1", "61")).thenReturn(39L);
         when(listOps.size("feed:1")).thenReturn(50L);
 
-        CursorPage<PostVO> page = feedService.getFeed(1L, 81L, 20);
+        CursorPage<PostVO> page = feedService.getFeed(1L, FeedType.FOLLOWING, 81L, 20);
 
         assertEquals(20, page.getContent().size());
         assertEquals(80L, page.getContent().get(0).getId());    // 紧接着上一条，无重复
@@ -164,7 +175,7 @@ class FeedServiceImplTest {
         when(listOps.indexOf("feed:1", "36")).thenReturn(64L);
         when(listOps.size("feed:1")).thenReturn(100L);
 
-        CursorPage<PostVO> page = feedService.getFeed(1L, null, 20);
+        CursorPage<PostVO> page = feedService.getFeed(1L, FeedType.FOLLOWING, null, 20);
 
         // 5 条（100..96）+ 15 条（50..36）= 20 条，跳过中间已删除的，一页填满
         assertEquals(20, page.getContent().size());
@@ -180,7 +191,7 @@ class FeedServiceImplTest {
         when(listOps.range("feed:1", 0, 49)).thenReturn(rangeIds(10, 1));
         when(postService.getPostsByIds(anyList(), eq(1L))).thenReturn(List.of());
 
-        CursorPage<PostVO> page = feedService.getFeed(1L, null, 20);
+        CursorPage<PostVO> page = feedService.getFeed(1L, FeedType.FOLLOWING, null, 20);
 
         assertTrue(page.getContent().isEmpty());
         assertNull(page.getNextCursor());
@@ -192,7 +203,7 @@ class FeedServiceImplTest {
         // 游标帖文已被 LTRIM 截断，LPOS 返回 null → 无更多
         when(listOps.indexOf("feed:1", "999")).thenReturn(null);
 
-        CursorPage<PostVO> page = feedService.getFeed(1L, 999L, 20);
+        CursorPage<PostVO> page = feedService.getFeed(1L, FeedType.FOLLOWING, 999L, 20);
 
         assertTrue(page.getContent().isEmpty());
         assertFalse(page.isHasMore());
@@ -202,7 +213,7 @@ class FeedServiceImplTest {
     void returnsEmptyWhenFeedEmpty() {
         when(listOps.range("feed:1", 0, 49)).thenReturn(List.of());
 
-        CursorPage<PostVO> page = feedService.getFeed(1L, null, 20);
+        CursorPage<PostVO> page = feedService.getFeed(1L, FeedType.FOLLOWING, null, 20);
 
         assertTrue(page.getContent().isEmpty());
         assertNull(page.getNextCursor());
@@ -218,7 +229,7 @@ class FeedServiceImplTest {
         when(listOps.indexOf("feed:1", "6")).thenReturn(2L);   // 最后一条可见帖文 id=6 位于 index 2
         when(listOps.size("feed:1")).thenReturn(8L);
 
-        CursorPage<PostVO> page = feedService.getFeed(1L, null, 3);
+        CursorPage<PostVO> page = feedService.getFeed(1L, FeedType.FOLLOWING, null, 3);
 
         assertEquals(3, page.getContent().size());
         assertEquals(8L, page.getContent().get(0).getId());
@@ -235,10 +246,103 @@ class FeedServiceImplTest {
         when(listOps.indexOf("feed:1", "1")).thenReturn(7L);   // 最后一条 id=1 位于列表末尾 index 7
         when(listOps.size("feed:1")).thenReturn(8L);
 
-        CursorPage<PostVO> page = feedService.getFeed(1L, null, 20);
+        CursorPage<PostVO> page = feedService.getFeed(1L, FeedType.FOLLOWING, null, 20);
 
         assertEquals(8, page.getContent().size());
         assertEquals(1L, page.getNextCursor());
         assertFalse(page.isHasMore());
+    }
+
+    // ==================== 广场（SQL 直查） ====================
+
+    private Post post(long id, long userId) {
+        Post p = new Post(userId, "content-" + id, null, null);
+        try {
+            Field f = Post.class.getSuperclass().getDeclaredField("id");
+            f.setAccessible(true);
+            f.set(p, id);
+        } catch (Exception ignored) {
+        }
+        return p;
+    }
+
+    @Test
+    void plazaReturnsNewestPageAndHasMore() {
+        // SQL 返回 21 条（100..80），size=20 → hasMore=true
+        when(postRepository.findPlazaFeed(isNull(), eq(PageRequest.of(0, 21))))
+                .thenReturn(List.of(post(100, 1), post(99, 1), post(98, 1), post(97, 1), post(96, 1),
+                        post(95, 2), post(94, 2), post(93, 2), post(92, 2), post(91, 2),
+                        post(90, 3), post(89, 3), post(88, 3), post(87, 3), post(86, 3),
+                        post(85, 1), post(84, 2), post(83, 3), post(82, 1), post(81, 2),
+                        post(80, 3)));
+        when(postService.getPostsByIds(anyList(), eq(1L)))
+                .thenAnswer(inv -> ((List<?>) inv.getArgument(0)).stream().map(id -> vo((Long) id)).toList());
+
+        CursorPage<PostVO> page = feedService.getFeed(1L, FeedType.PLAZA, null, 20);
+
+        assertEquals(20, page.getContent().size());
+        assertEquals(100L, page.getContent().get(0).getId());
+        assertEquals(81L, page.getContent().get(19).getId());
+        assertEquals(81L, page.getNextCursor());
+        assertTrue(page.isHasMore());
+    }
+
+    @Test
+    void plazaCursorPaginationContinues() {
+        when(postRepository.findPlazaFeed(eq(81L), eq(PageRequest.of(0, 21))))
+                .thenReturn(List.of(post(80, 1), post(79, 2), post(78, 1)));
+        when(postService.getPostsByIds(anyList(), eq(1L)))
+                .thenAnswer(inv -> ((List<?>) inv.getArgument(0)).stream().map(id -> vo((Long) id)).toList());
+
+        CursorPage<PostVO> page = feedService.getFeed(1L, FeedType.PLAZA, 81L, 20);
+
+        assertEquals(3, page.getContent().size());
+        assertEquals(80L, page.getContent().get(0).getId());
+        assertEquals(78L, page.getNextCursor());
+        assertFalse(page.isHasMore());
+    }
+
+    @Test
+    void plazaReturnsEmptyWhenNoPosts() {
+        when(postRepository.findPlazaFeed(isNull(), eq(PageRequest.of(0, 21)))).thenReturn(List.of());
+
+        CursorPage<PostVO> page = feedService.getFeed(1L, FeedType.PLAZA, null, 20);
+
+        assertTrue(page.getContent().isEmpty());
+        assertNull(page.getNextCursor());
+        assertFalse(page.isHasMore());
+    }
+
+    // ==================== 附近（SQL 直查，按用户位置过滤） ====================
+
+    @Test
+    void nearbyReturnsEmptyWhenUserHasNoLocation() {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(new User("u", "U", "p")));
+
+        CursorPage<PostVO> page = feedService.getFeed(1L, FeedType.NEARBY, null, 20);
+
+        assertTrue(page.getContent().isEmpty());
+        assertNull(page.getNextCursor());
+        assertFalse(page.isHasMore());
+    }
+
+    @Test
+    void nearbyFiltersPostsByUserLocation() {
+        User user = new User("u", "U", "p");
+        user.setLocation("北京市");
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(postRepository.findNearbyFeed(eq("北京市"), isNull(), eq(PageRequest.of(0, 21))))
+                .thenReturn(List.of(post(100, 2), post(99, 2), post(98, 2)));
+        when(postService.getPostsByIds(anyList(), eq(1L)))
+                .thenAnswer(inv -> ((List<?>) inv.getArgument(0)).stream().map(id -> vo((Long) id)).toList());
+
+        CursorPage<PostVO> page = feedService.getFeed(1L, FeedType.NEARBY, null, 20);
+
+        assertEquals(3, page.getContent().size());
+        assertEquals(100L, page.getContent().get(0).getId());
+        assertEquals(98L, page.getNextCursor());
+        assertFalse(page.isHasMore());
+        // 必须把用户 location 传给 SQL 过滤
+        verify(postRepository).findNearbyFeed(eq("北京市"), isNull(), eq(PageRequest.of(0, 21)));
     }
 }

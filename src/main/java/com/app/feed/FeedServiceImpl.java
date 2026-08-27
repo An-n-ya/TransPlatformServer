@@ -6,6 +6,8 @@ import com.app.content.PostRepository;
 import com.app.content.PostService;
 import com.app.content.PostVO;
 import com.app.user.FollowRepository;
+import com.app.user.User;
+import com.app.user.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -21,10 +23,13 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Feed 流实现 — 写扩散（Push）模式
+ * Feed 流实现
  *
- * 数据存储格式:
- *   feed:{userId} → Redis List<PostId>，最新在前，LTRIM 保留最近 N 条
+ * 三种时间流：
+ *  - plaza    广场：所有用户最新帖文，SQL 直查（不用推模式）
+ *  - following 关注：当前用户关注的所有用户最新帖文，写扩散（Push）模式
+ *             数据存储格式：feed:{userId} → Redis List<PostId>，最新在前，LTRIM 保留最近 N 条
+ *  - nearby   附近：按当前用户位置过滤的帖文，SQL 直查（不用推模式）
  */
 @Slf4j
 @Service
@@ -35,6 +40,7 @@ public class FeedServiceImpl implements FeedService {
     private final FollowRepository followRepository;
     private final PostService postService;
     private final PostRepository postRepository;
+    private final UserRepository userRepository;
 
     private static final String FEED_KEY_PREFIX = "feed:";
 
@@ -45,7 +51,62 @@ public class FeedServiceImpl implements FeedService {
     private int maxFeedSize;
 
     @Override
-    public CursorPage<PostVO> getFeed(Long userId, Long cursor, int size) {
+    public CursorPage<PostVO> getFeed(Long userId, FeedType type, Long cursor, int size) {
+        return switch (type) {
+            case PLAZA -> getPlazaFeed(userId, cursor, size);
+            case FOLLOWING -> getFollowingFeed(userId, cursor, size);
+            case NEARBY -> getNearbyFeed(userId, cursor, size);
+        };
+    }
+
+    // ==================== 广场（SQL 直查） ====================
+
+    /**
+     * 广场时间流：所有用户的最新帖文，按 id 倒序，SQL 直查。
+     */
+    public CursorPage<PostVO> getPlazaFeed(Long userId, Long cursor, int size) {
+        List<Post> posts = postRepository.findPlazaFeed(cursor, PageRequest.of(0, size + 1));
+        return toCursorPage(posts, size, userId);
+    }
+
+    // ==================== 附近（SQL 直查） ====================
+
+    /**
+     * 附近时间流：位置等于当前用户 location 的用户发布的帖文，SQL 直查。
+     * 当前用户未设置 location 时返回空列表。
+     */
+    public CursorPage<PostVO> getNearbyFeed(Long userId, Long cursor, int size) {
+        String location = userRepository.findById(userId)
+                .map(User::getLocation)
+                .orElse(null);
+        if (location == null || location.isBlank()) {
+            return CursorPage.empty();
+        }
+        List<Post> posts = postRepository.findNearbyFeed(location, cursor, PageRequest.of(0, size + 1));
+        return toCursorPage(posts, size, userId);
+    }
+
+    /**
+     * 将 SQL 直查结果（按 id 倒序）转换为游标分页结果。
+     * 多查一条用于判断 hasMore，避免额外 count 查询。
+     */
+    private CursorPage<PostVO> toCursorPage(List<Post> posts, int size, Long userId) {
+        if (posts == null || posts.isEmpty()) {
+            return CursorPage.empty();
+        }
+        boolean hasMore = posts.size() > size;
+        List<Post> pagePosts = hasMore ? posts.subList(0, size) : posts;
+
+        List<Long> ids = pagePosts.stream().map(Post::getId).toList();
+        List<PostVO> vos = postService.getPostsByIds(ids, userId);
+
+        Long nextCursor = pagePosts.get(pagePosts.size() - 1).getId();
+        return new CursorPage<>(vos, nextCursor, hasMore);
+    }
+
+    // ==================== 关注（写扩散/Push 模式） ====================
+
+    public CursorPage<PostVO> getFollowingFeed(Long userId, Long cursor, int size) {
         String feedKey = FEED_KEY_PREFIX + userId;
         ListOperations<String, String> listOps = stringRedisTemplate.opsForList();
 
