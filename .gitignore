@@ -1,6 +1,7 @@
 uploads/
 logs/
 data/
+assets/
 .idea/
 target/
 .trae/
