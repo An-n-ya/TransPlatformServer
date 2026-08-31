@@ -65,6 +65,9 @@ services:
     restart: unless-stopped
     environment:
       <<: *app-env
+      # 容器时区固定为东八区（与 AppApplication 内 JVM 默认时区保持一致），
+      # 保证日志时间戳、OS 级时间与接口返回的时间一致。
+      TZ: ${APP_TIMEZONE:-Asia/Shanghai}
       # 存储配置（mock=本地磁盘；如需云存储可改为 cos/s3 并补充密钥）
       STORAGE_PROVIDER: ${STORAGE_PROVIDER:-mock}
       COS_SECRET_ID: ${COS_SECRET_ID:-}

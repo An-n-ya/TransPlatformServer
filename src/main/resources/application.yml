@@ -14,6 +14,9 @@ spring:
 
   jackson:
     date-format: yyyy-MM-dd HH:mm:ss
+    # 注意：该配置只对 java.util.Date 序列化生效，对 LocalDateTime 无效。
+    # LocalDateTime 的写入/读取取决于 JVM 默认时区，已由 AppApplication.main()
+    # 在启动前固定为 Asia/Shanghai（可用 APP_TIMEZONE 环境变量覆盖）。
     time-zone: Asia/Shanghai
     serialization:
       write-dates-as-timestamps: false
